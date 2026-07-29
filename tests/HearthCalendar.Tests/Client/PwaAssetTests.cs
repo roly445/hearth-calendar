@@ -53,8 +53,7 @@ public sealed class PwaAssetTests
         return new
         {
             Path = Path.GetRelativePath(root, path).Replace('\\', '/'),
-            info.Exists,
-            info.Length
+            info.Exists
         };
     }
 

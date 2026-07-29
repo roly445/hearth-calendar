@@ -86,7 +86,7 @@ Feed tokens may be scoped to:
 
 - a single virtual calendar
 - a group of virtual calendars
-- a specific consumer, such as `andrew-work-google`
+- a specific consumer, such as `adult-a-work-calendar`
 
 ## Authentication Methods
 

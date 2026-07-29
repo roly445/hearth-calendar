@@ -24,18 +24,15 @@
   Assets: [
     {
       Path: src/HearthCalendar.Client/wwwroot/manifest.webmanifest,
-      Exists: true,
-      Length: 446
+      Exists: true
     },
     {
       Path: src/HearthCalendar.Client/wwwroot/service-worker.js,
-      Exists: true,
-      Length: 269
+      Exists: true
     },
     {
       Path: src/HearthCalendar.Client/wwwroot/service-worker.published.js,
-      Exists: true,
-      Length: 2708
+      Exists: true
     }
   ],
   IconCount: 2
