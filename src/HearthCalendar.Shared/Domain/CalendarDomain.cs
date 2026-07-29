@@ -20,6 +20,11 @@ public readonly record struct AuditEntryId(Guid Value)
     public static AuditEntryId New() => new(Guid.NewGuid());
 }
 
+public readonly record struct AiReviewSuggestionId(Guid Value)
+{
+    public static AiReviewSuggestionId New() => new(Guid.NewGuid());
+}
+
 public readonly record struct PersonId(string Value);
 
 public sealed record Person(PersonId Id, string DisplayName, PersonKind Kind);
@@ -114,9 +119,31 @@ public sealed record ReviewDecision(
     IReadOnlyList<Clash> Clashes,
     CalendarEvent? Event,
     DateTimeOffset DecidedAt,
-    ActorRef DecidedBy);
+    ActorRef DecidedBy,
+    AiReviewSuggestionId? AiSuggestionId = null);
 
-public sealed record ReviewOutcome(ReviewDecision Decision, AuditEntry AuditEntry);
+public sealed record ReviewOutcome(ReviewDecision Decision, AuditEntry AuditEntry, AiReviewSuggestion? AiSuggestion = null);
+
+public sealed record AiReviewRequest(
+    EventIntentId IntentId,
+    CalendarSource Source,
+    ReviewSourceMode SourceMode,
+    string RawText,
+    EventIntentPayload? Payload,
+    DateTimeOffset SubmittedAt);
+
+public sealed record AiReviewSuggestion(
+    AiReviewSuggestionId Id,
+    string Provider,
+    string Model,
+    string? SuggestedTitle,
+    VirtualCalendar? SuggestedCalendar,
+    IReadOnlyList<PersonId> SuggestedParticipants,
+    PersonId? SuggestedResponsibleAdult,
+    RecurrenceRule? SuggestedRecurrence,
+    decimal Confidence,
+    IReadOnlyList<string> Reasons,
+    DateTimeOffset CreatedAt);
 
 public sealed record DecisionReason(DecisionReasonCode Code, string Message);
 
@@ -240,7 +267,10 @@ public enum DecisionReasonCode
     AmbiguousIntent,
     MissingDate,
     PastEvent,
-    ClashDetected
+    ClashDetected,
+    AiProviderUnavailable,
+    AiSuggestionApplied,
+    AiSuggestionIgnored
 }
 
 public enum PersonKind
