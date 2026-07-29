@@ -1,0 +1,36 @@
+﻿{
+  Candidate: {
+    Title: Child swimming,
+    PrimaryCalendar: Child,
+    Category: Responsibility,
+    BusyStatus: Busy,
+    ReviewStatus: Approved,
+    Time: {
+      Date: 2026-07-29,
+      StartTime: 15:00:00,
+      EndTime: 16:00:00,
+      IsAllDay: false
+    },
+    Participants: [
+      {
+        Person: Child,
+        PersonId: child,
+        Role: Child,
+        BusyStatus: Busy
+      },
+      {
+        Person: Adult B,
+        PersonId: adult-b,
+        Role: ResponsibleAdult,
+        BusyStatus: Busy
+      }
+    ],
+    ResponsibleAdult: {
+      Adult: Adult B,
+      AdultId: adult-b,
+      Kind: Attending,
+      Source: Inferred
+    },
+    HasParentEvent: false
+  }
+}

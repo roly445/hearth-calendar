@@ -1,0 +1,12 @@
+﻿{
+  Status: Staged,
+  Mode: Automatic,
+  Reasons: [
+    {
+      Code: MissingDate,
+      Message: Reference events need a known date before yearly recurrence can be created.
+    }
+  ],
+  DecidedAt: DateTimeOffset_1,
+  DecidedBy: system
+}

@@ -1,0 +1,59 @@
+﻿{
+  Decision: {
+    Status: Approved,
+    Mode: Automatic,
+    Event: {
+      Title: Family BBQ,
+      PrimaryCalendar: Family,
+      Category: Family,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-29,
+        IsAllDay: true
+      },
+      Participants: [
+        {
+          Person: Adult A,
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        },
+        {
+          Person: Adult B,
+          PersonId: adult-b,
+          Role: Attendee,
+          BusyStatus: Busy
+        },
+        {
+          Person: Child,
+          PersonId: child,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ],
+      HasParentEvent: false
+    },
+    Reasons: [
+      {
+        Code: DeterministicMatch,
+        Message: The deterministic review rules matched the intent.
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  },
+  AuditEntry: {
+    Action: EventApproved,
+    Actor: system,
+    OccurredAt: DateTimeOffset_1,
+    Summary: Intent Approved.,
+    HasIntentLink: true,
+    HasCalendarEventLink: true,
+    HasReviewDecisionLink: true,
+    Metadata: {
+      mode: Passive,
+      source: Test
+    }
+  }
+}

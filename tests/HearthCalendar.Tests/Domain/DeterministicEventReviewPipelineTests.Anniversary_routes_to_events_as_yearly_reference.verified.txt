@@ -1,0 +1,25 @@
+﻿{
+  Status: Approved,
+  Mode: Automatic,
+  Event: {
+    Title: Family anniversary on 1 August,
+    PrimaryCalendar: Events,
+    Category: Anniversary,
+    BusyStatus: Free,
+    ReviewStatus: Approved,
+    Time: {
+      Date: 2026-08-01,
+      IsAllDay: true
+    },
+    Recurrence: Yearly,
+    HasParentEvent: false
+  },
+  Reasons: [
+    {
+      Code: DeterministicMatch,
+      Message: The deterministic review rules matched the intent.
+    }
+  ],
+  DecidedAt: DateTimeOffset_1,
+  DecidedBy: system
+}

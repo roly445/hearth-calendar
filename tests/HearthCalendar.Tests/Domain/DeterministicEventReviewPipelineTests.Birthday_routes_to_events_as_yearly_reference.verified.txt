@@ -1,0 +1,33 @@
+﻿{
+  Status: Approved,
+  Mode: Automatic,
+  Event: {
+    Title: Adult B birthday on 25 July,
+    PrimaryCalendar: Events,
+    Category: Birthday,
+    BusyStatus: Free,
+    ReviewStatus: Approved,
+    Time: {
+      Date: 2026-07-25,
+      IsAllDay: true
+    },
+    Recurrence: Yearly,
+    Participants: [
+      {
+        Person: Adult B,
+        PersonId: adult-b,
+        Role: Attendee,
+        BusyStatus: Free
+      }
+    ],
+    HasParentEvent: false
+  },
+  Reasons: [
+    {
+      Code: DeterministicMatch,
+      Message: The deterministic review rules matched the intent.
+    }
+  ],
+  DecidedAt: DateTimeOffset_1,
+  DecidedBy: system
+}

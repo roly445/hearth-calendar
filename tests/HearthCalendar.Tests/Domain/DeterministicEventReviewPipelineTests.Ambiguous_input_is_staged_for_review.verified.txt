@@ -1,0 +1,12 @@
+﻿{
+  Status: Staged,
+  Mode: Automatic,
+  Reasons: [
+    {
+      Code: AmbiguousIntent,
+      Message: The intent does not identify enough calendar details.
+    }
+  ],
+  DecidedAt: DateTimeOffset_1,
+  DecidedBy: system
+}
