@@ -12,33 +12,36 @@ namespace HearthCalendar.Tests.Server;
 public sealed class HealthEndpointTests
 {
     [Fact]
-    public async Task HealthEndpointReturnsHealthy()
+    public async Task HealthEndpointMatchesSnapshot()
     {
         await using var factory = new WebApplicationFactory<HearthCalendar.Server.Program>();
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/health");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("Healthy", await response.Content.ReadAsStringAsync());
-    }
-
-    [Fact]
-    public async Task HealthEndpointIsExplicitlyAnonymous()
-    {
-        await using var factory = new WebApplicationFactory<HearthCalendar.Server.Program>();
-        _ = factory.CreateClient();
+        var content = await response.Content.ReadAsStringAsync();
 
         var endpoint = factory.Services
             .GetRequiredService<EndpointDataSource>()
             .Endpoints
             .Single(endpoint => endpoint.DisplayName?.Contains("HTTP: GET /health", StringComparison.Ordinal) == true);
 
-        Assert.Contains(endpoint.Metadata, metadata => metadata is IAllowAnonymous);
+        await Verifier.Verify(new
+        {
+            StatusCode = response.StatusCode,
+            Body = content,
+            IsExplicitlyAnonymous = endpoint.Metadata.Any(metadata => metadata is IAllowAnonymous),
+            SecurityHeaders = new
+            {
+                XContentTypeOptions = response.Headers.GetValues("X-Content-Type-Options").Single(),
+                XFrameOptions = response.Headers.GetValues("X-Frame-Options").Single(),
+                ReferrerPolicy = response.Headers.GetValues("Referrer-Policy").Single(),
+                ContentSecurityPolicy = response.Headers.GetValues("Content-Security-Policy").Single()
+            }
+        });
     }
 
     [Fact]
-    public async Task AppUsesFallbackAuthorization()
+    public async Task ServerDefaultsMatchSnapshot()
     {
         await using var factory = new WebApplicationFactory<HearthCalendar.Server.Program>();
         _ = factory.CreateClient();
@@ -47,32 +50,19 @@ public sealed class HealthEndpointTests
             .GetRequiredService<IOptions<AuthorizationOptions>>()
             .Value;
 
-        Assert.NotNull(authorizationOptions.FallbackPolicy);
-        Assert.Contains(
-            authorizationOptions.FallbackPolicy.Requirements,
-            requirement => requirement is DenyAnonymousAuthorizationRequirement);
-    }
-
-    [Fact]
-    public void ServiceProviderValidationRunsInDevelopmentAndTest()
-    {
-        Assert.True(HearthCalendar.Server.Program.ShouldValidateServiceProvider("Development"));
-        Assert.True(HearthCalendar.Server.Program.ShouldValidateServiceProvider("Test"));
-        Assert.False(HearthCalendar.Server.Program.ShouldValidateServiceProvider("Production"));
-    }
-
-    [Fact]
-    public async Task HealthEndpointIncludesSecurityHeaders()
-    {
-        await using var factory = new WebApplicationFactory<HearthCalendar.Server.Program>();
-        using var client = factory.CreateClient();
-
-        var response = await client.GetAsync("/health");
-
-        Assert.Equal("nosniff", response.Headers.GetValues("X-Content-Type-Options").Single());
-        Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
-        Assert.Contains(
-            "default-src 'self'",
-            response.Headers.GetValues("Content-Security-Policy").Single());
+        await Verifier.Verify(new
+        {
+            HasFallbackAuthorizationPolicy = authorizationOptions.FallbackPolicy is not null,
+            FallbackRequirements = authorizationOptions.FallbackPolicy?.Requirements
+                .Select(requirement => requirement.GetType().Name)
+                .Order()
+                .ToArray(),
+            ServiceProviderValidation = new
+            {
+                Development = HearthCalendar.Server.Program.ShouldValidateServiceProvider("Development"),
+                Test = HearthCalendar.Server.Program.ShouldValidateServiceProvider("Test"),
+                Production = HearthCalendar.Server.Program.ShouldValidateServiceProvider("Production")
+            }
+        });
     }
 }

@@ -1,0 +1,11 @@
+﻿{
+  StatusCode: OK,
+  Body: {"status":"Healthy"},
+  IsExplicitlyAnonymous: true,
+  SecurityHeaders: {
+    XContentTypeOptions: nosniff,
+    XFrameOptions: DENY,
+    ReferrerPolicy: strict-origin-when-cross-origin,
+    ContentSecurityPolicy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data: blob:; font-src 'self'; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; form-action 'self'
+  }
+}
