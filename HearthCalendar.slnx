@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HearthCalendar.Client/HearthCalendar.Client.csproj" />
+    <Project Path="src/HearthCalendar.Server/HearthCalendar.Server.csproj" />
+    <Project Path="src/HearthCalendar.Shared/HearthCalendar.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HearthCalendar.Tests/HearthCalendar.Tests.csproj" />
+  </Folder>
+</Solution>

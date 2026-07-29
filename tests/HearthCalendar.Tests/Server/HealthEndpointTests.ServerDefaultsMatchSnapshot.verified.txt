@@ -1,0 +1,11 @@
+﻿{
+  HasFallbackAuthorizationPolicy: true,
+  FallbackRequirements: [
+    DenyAnonymousAuthorizationRequirement
+  ],
+  ServiceProviderValidation: {
+    Development: true,
+    Test: true,
+    Production: false
+  }
+}

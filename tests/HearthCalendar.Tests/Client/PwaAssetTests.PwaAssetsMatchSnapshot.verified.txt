@@ -1,0 +1,39 @@
+﻿{
+  Manifest: {
+    Name: Hearth Calendar,
+    ShortName: Hearth,
+    Id: ./,
+    StartUrl: ./,
+    Display: standalone,
+    BackgroundColor: #ffffff,
+    ThemeColor: #03173d,
+    PreferRelatedApplications: false,
+    Icons: [
+      {
+        Src: icon-512.png,
+        Type: image/png,
+        Sizes: 512x512
+      },
+      {
+        Src: icon-192.png,
+        Type: image/png,
+        Sizes: 192x192
+      }
+    ]
+  },
+  Assets: [
+    {
+      Path: src/HearthCalendar.Client/wwwroot/manifest.webmanifest,
+      Exists: true
+    },
+    {
+      Path: src/HearthCalendar.Client/wwwroot/service-worker.js,
+      Exists: true
+    },
+    {
+      Path: src/HearthCalendar.Client/wwwroot/service-worker.published.js,
+      Exists: true
+    }
+  ],
+  IconCount: 2
+}
