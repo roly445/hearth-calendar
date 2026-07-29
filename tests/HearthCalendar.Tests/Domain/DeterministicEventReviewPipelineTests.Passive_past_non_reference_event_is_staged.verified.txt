@@ -1,0 +1,34 @@
+﻿{
+  Status: Staged,
+  Mode: Automatic,
+  Event: {
+    Title: Dentist for Adult A,
+    PrimaryCalendar: AdultA,
+    Category: Personal,
+    BusyStatus: Busy,
+    ReviewStatus: Staged,
+    Time: {
+      Date: 2026-07-28,
+      StartTime: 10:00:00,
+      EndTime: 11:00:00,
+      IsAllDay: false
+    },
+    Participants: [
+      {
+        Person: Adult A,
+        PersonId: adult-a,
+        Role: Attendee,
+        BusyStatus: Busy
+      }
+    ],
+    HasParentEvent: false
+  },
+  Reasons: [
+    {
+      Code: PastEvent,
+      Message: Past non-reference events need confirmation.
+    }
+  ],
+  DecidedAt: DateTimeOffset_1,
+  DecidedBy: system
+}

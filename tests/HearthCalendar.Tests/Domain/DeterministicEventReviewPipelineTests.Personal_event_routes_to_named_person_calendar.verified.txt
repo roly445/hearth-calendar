@@ -1,0 +1,32 @@
+﻿{
+  Status: Approved,
+  Mode: Automatic,
+  Event: {
+    Title: Dentist for Adult A,
+    PrimaryCalendar: AdultA,
+    Category: Personal,
+    BusyStatus: Busy,
+    ReviewStatus: Approved,
+    Time: {
+      Date: 2026-07-29,
+      IsAllDay: true
+    },
+    Participants: [
+      {
+        Person: Adult A,
+        PersonId: adult-a,
+        Role: Attendee,
+        BusyStatus: Busy
+      }
+    ],
+    HasParentEvent: false
+  },
+  Reasons: [
+    {
+      Code: DeterministicMatch,
+      Message: The deterministic review rules matched the intent.
+    }
+  ],
+  DecidedAt: DateTimeOffset_1,
+  DecidedBy: system
+}

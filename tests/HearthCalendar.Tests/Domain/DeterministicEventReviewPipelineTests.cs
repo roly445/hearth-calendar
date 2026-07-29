@@ -7,94 +7,63 @@ public sealed class DeterministicEventReviewPipelineTests
     private static readonly DateOnly Today = new(2026, 7, 29);
 
     [Fact]
-    public void Birthday_routes_to_events_as_yearly_reference()
+    public Task Birthday_routes_to_events_as_yearly_reference()
     {
         var decision = Review("Adult B birthday on 25 July");
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.NotNull(decision.Event);
-        Assert.Equal(VirtualCalendar.Events, decision.Event.PrimaryCalendar);
-        Assert.Equal(EventCategory.Birthday, decision.Event.Category);
-        Assert.Equal(BusyStatus.Free, decision.Event.BusyStatus);
-        Assert.Equal(new DateOnly(2026, 7, 25), decision.Event.Time.Date);
-        Assert.Equal(RecurrenceFrequency.Yearly, decision.Event.Recurrence?.Frequency);
-        Assert.Contains(decision.Event.Participants, participant => participant.Person.Id == KnownPeople.AdultB.Id);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Anniversary_routes_to_events_as_yearly_reference()
+    public Task Anniversary_routes_to_events_as_yearly_reference()
     {
         var decision = Review("Family anniversary on 1 August");
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.NotNull(decision.Event);
-        Assert.Equal(VirtualCalendar.Events, decision.Event.PrimaryCalendar);
-        Assert.Equal(EventCategory.Anniversary, decision.Event.Category);
-        Assert.Equal(BusyStatus.Free, decision.Event.BusyStatus);
-        Assert.Equal(new DateOnly(2026, 8, 1), decision.Event.Time.Date);
-        Assert.Equal(RecurrenceFrequency.Yearly, decision.Event.Recurrence?.Frequency);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Undated_reference_event_is_staged_for_review()
+    public Task Undated_reference_event_is_staged_for_review()
     {
         var decision = Review("Adult B birthday");
 
-        Assert.Equal(ReviewStatus.Staged, decision.Status);
-        Assert.Null(decision.Event);
-        Assert.Contains(decision.Reasons, reason => reason.Code == DecisionReasonCode.MissingDate);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Child_responsibility_records_clear_responsible_adult()
+    public Task Child_responsibility_records_clear_responsible_adult()
     {
         var decision = Review("Child swimming with Adult B");
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.NotNull(decision.Event);
-        Assert.Equal(VirtualCalendar.Child, decision.Event.PrimaryCalendar);
-        Assert.Equal(
-            KnownPeople.Child.Id,
-            Assert.Single(decision.Event.Participants, participant => participant.Role == ParticipationRole.Child).Person.Id);
-        Assert.Equal(KnownPeople.AdultB.Id, decision.Event.ResponsibleAdult?.Adult.Id);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Family_event_routes_to_family_calendar_with_everyone()
+    public Task Family_event_routes_to_family_calendar_with_everyone()
     {
         var decision = Review("Family BBQ");
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.NotNull(decision.Event);
-        Assert.Equal(VirtualCalendar.Family, decision.Event.PrimaryCalendar);
-        Assert.Contains(decision.Event.Participants, participant => participant.Person.Id == KnownPeople.AdultA.Id);
-        Assert.Contains(decision.Event.Participants, participant => participant.Person.Id == KnownPeople.AdultB.Id);
-        Assert.Contains(decision.Event.Participants, participant => participant.Person.Id == KnownPeople.Child.Id);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Personal_event_routes_to_named_person_calendar()
+    public Task Personal_event_routes_to_named_person_calendar()
     {
         var decision = Review("Dentist for Adult A");
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.NotNull(decision.Event);
-        Assert.Equal(VirtualCalendar.AdultA, decision.Event.PrimaryCalendar);
-        Assert.Contains(decision.Event.Participants, participant => participant.Person.Id == KnownPeople.AdultA.Id);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Ambiguous_input_is_staged_for_review()
+    public Task Ambiguous_input_is_staged_for_review()
     {
         var decision = Review("dentist");
 
-        Assert.Equal(ReviewStatus.Staged, decision.Status);
-        Assert.Null(decision.Event);
-        Assert.Contains(decision.Reasons, reason => reason.Code == DecisionReasonCode.AmbiguousIntent);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Passive_past_non_reference_event_is_staged()
+    public Task Passive_past_non_reference_event_is_staged()
     {
         var intent = Intent(
             "Dentist for Adult A",
@@ -103,12 +72,11 @@ public sealed class DeterministicEventReviewPipelineTests
 
         var decision = Pipeline().Review(intent);
 
-        Assert.Equal(ReviewStatus.Staged, decision.Status);
-        Assert.Contains(decision.Reasons, reason => reason.Code == DecisionReasonCode.PastEvent);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Interactive_past_non_reference_event_is_rejected()
+    public Task Interactive_past_non_reference_event_is_rejected()
     {
         var intent = Intent(
             "Dentist for Adult A",
@@ -117,12 +85,11 @@ public sealed class DeterministicEventReviewPipelineTests
 
         var decision = Pipeline().Review(intent);
 
-        Assert.Equal(ReviewStatus.Rejected, decision.Status);
-        Assert.Contains(decision.Reasons, reason => reason.Code == DecisionReasonCode.PastEvent);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Past_birthday_is_allowed_as_yearly_reference_event()
+    public Task Past_birthday_is_allowed_as_yearly_reference_event()
     {
         var intent = Intent(
             "Adult B birthday on 25 July",
@@ -131,13 +98,11 @@ public sealed class DeterministicEventReviewPipelineTests
 
         var decision = Pipeline().Review(intent);
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.Equal(EventCategory.Birthday, decision.Event?.Category);
-        Assert.Equal(RecurrenceFrequency.Yearly, decision.Event?.Recurrence?.Frequency);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Adult_and_family_overlap_produces_a_clash()
+    public Task Adult_and_family_overlap_produces_a_clash()
     {
         var existing = CalendarEvent.Approved(
             CalendarEventId.New(),
@@ -156,14 +121,11 @@ public sealed class DeterministicEventReviewPipelineTests
 
         var decision = Pipeline(existing).Review(intent);
 
-        Assert.Equal(ReviewStatus.Staged, decision.Status);
-        Assert.Single(decision.Clashes);
-        Assert.Equal(ClashSeverity.Warning, decision.Clashes[0].Severity);
-        Assert.Contains(KnownPeople.AdultA.Id, decision.Clashes[0].AffectedPeople.Select(person => person.Id));
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Busy_event_overlapping_reference_event_does_not_clash()
+    public Task Busy_event_overlapping_reference_event_does_not_clash()
     {
         var existing = CalendarEvent.Approved(
             CalendarEventId.New(),
@@ -182,12 +144,11 @@ public sealed class DeterministicEventReviewPipelineTests
 
         var decision = Pipeline(existing).Review(intent);
 
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.Empty(decision.Clashes);
+        return Verifier.Verify(DescribeDecision(decision));
     }
 
     [Fact]
-    public void Child_event_does_not_self_clash_with_managed_responsibility_projection()
+    public Task Child_event_does_not_self_clash_with_managed_responsibility_projection()
     {
         var parentId = CalendarEventId.New();
         var candidate = CalendarEvent.Approved(
@@ -216,24 +177,38 @@ public sealed class DeterministicEventReviewPipelineTests
 
         var clashes = ClashDetector.FindClashes(candidate, [projection]);
 
-        Assert.Empty(clashes);
+        return Verifier.Verify(new
+        {
+            Candidate = DescribeEvent(candidate),
+            Clashes = clashes.Select(DescribeClash)
+        });
     }
 
     [Fact]
-    public void Review_with_audit_returns_audit_entry_for_decision()
+    public Task Review_with_audit_returns_audit_entry_for_decision()
     {
         var intent = Intent("Family BBQ");
         var outcome = Pipeline().ReviewWithAudit(intent);
 
-        Assert.Equal(ReviewStatus.Approved, outcome.Decision.Status);
-        Assert.Equal(AuditAction.EventApproved, outcome.AuditEntry.Action);
-        Assert.Equal(intent.Id, outcome.AuditEntry.IntentId);
-        Assert.Equal(outcome.Decision.Id, outcome.AuditEntry.ReviewDecisionId);
-        Assert.Equal(outcome.Decision.Event?.Id, outcome.AuditEntry.CalendarEventId);
+        return Verifier.Verify(new
+        {
+            Decision = DescribeDecision(outcome.Decision),
+            AuditEntry = new
+            {
+                outcome.AuditEntry.Action,
+                Actor = outcome.AuditEntry.Actor.Id,
+                outcome.AuditEntry.OccurredAt,
+                outcome.AuditEntry.Summary,
+                HasIntentLink = outcome.AuditEntry.IntentId is not null,
+                HasCalendarEventLink = outcome.AuditEntry.CalendarEventId is not null,
+                HasReviewDecisionLink = outcome.AuditEntry.ReviewDecisionId is not null,
+                outcome.AuditEntry.Metadata
+            }
+        });
     }
 
     [Fact]
-    public void Virtual_calendar_views_include_only_matching_approved_events()
+    public Task Virtual_calendar_views_include_only_matching_approved_events()
     {
         var adultAEvent = Review("Dentist for Adult A").Event ?? throw new InvalidOperationException("Expected approved event.");
         var familyEvent = Review("Family BBQ").Event ?? throw new InvalidOperationException("Expected approved event.");
@@ -247,8 +222,11 @@ public sealed class DeterministicEventReviewPipelineTests
             VirtualCalendar.Review,
             [adultAEvent, familyEvent, stagedEvent, rejectedEvent]);
 
-        Assert.Equal([adultAEvent.Id, familyEvent.Id], adultAEvents.Select(calendarEvent => calendarEvent.Id));
-        Assert.Equal([stagedEvent.Id], reviewEvents.Select(calendarEvent => calendarEvent.Id));
+        return Verifier.Verify(new
+        {
+            AdultA = adultAEvents.Select(DescribeEvent),
+            Review = reviewEvents.Select(DescribeEvent)
+        });
     }
 
     private static ReviewDecision Review(string text) => Pipeline().Review(Intent(text));
@@ -268,4 +246,72 @@ public sealed class DeterministicEventReviewPipelineTests
             payload,
             new DateTimeOffset(Today.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero),
             ActorRef.System);
+
+    private static object DescribeDecision(ReviewDecision decision) => new
+    {
+        Status = decision.Status.ToString(),
+        Mode = decision.Mode.ToString(),
+        Event = DescribeEvent(decision.Event),
+        Reasons = decision.Reasons.Select(reason => new
+        {
+            Code = reason.Code.ToString(),
+            reason.Message
+        }).ToArray(),
+        Clashes = decision.Clashes.Select(DescribeClash).ToArray(),
+        DecidedAt = decision.DecidedAt.ToString("O"),
+        DecidedBy = decision.DecidedBy.Id
+    };
+
+    private static object? DescribeEvent(CalendarEvent? calendarEvent)
+    {
+        if (calendarEvent is null)
+        {
+            return null;
+        }
+
+        return new
+        {
+            calendarEvent.Title,
+            PrimaryCalendar = calendarEvent.PrimaryCalendar.ToString(),
+            Category = calendarEvent.Category.ToString(),
+            BusyStatus = calendarEvent.BusyStatus.ToString(),
+            ReviewStatus = calendarEvent.ReviewStatus.ToString(),
+            Time = new
+            {
+                Date = calendarEvent.Time.Date.ToString("O"),
+                StartTime = calendarEvent.Time.StartTime?.ToString("HH:mm:ss"),
+                EndTime = calendarEvent.Time.EndTime?.ToString("HH:mm:ss"),
+                calendarEvent.Time.IsAllDay
+            },
+            Recurrence = calendarEvent.Recurrence?.Frequency.ToString(),
+            Participants = calendarEvent.Participants.Select(participant => new
+            {
+                Person = participant.Person.DisplayName,
+                PersonId = participant.Person.Id.Value,
+                Role = participant.Role.ToString(),
+                BusyStatus = participant.BusyStatus.ToString()
+            }).ToArray(),
+            ResponsibleAdult = calendarEvent.ResponsibleAdult is null
+                ? null
+                : new
+                {
+                    Adult = calendarEvent.ResponsibleAdult.Adult.DisplayName,
+                    AdultId = calendarEvent.ResponsibleAdult.Adult.Id.Value,
+                    Kind = calendarEvent.ResponsibleAdult.Kind.ToString(),
+                    Source = calendarEvent.ResponsibleAdult.Source.ToString()
+                },
+            HasParentEvent = calendarEvent.ParentEventId is not null
+        };
+    }
+
+    private static object DescribeClash(Clash clash) => new
+    {
+        Severity = clash.Severity.ToString(),
+        clash.Summary,
+        AffectedPeople = clash.AffectedPeople.Select(person => new
+        {
+            person.DisplayName,
+            PersonId = person.Id.Value
+        }).ToArray()
+    };
 }
