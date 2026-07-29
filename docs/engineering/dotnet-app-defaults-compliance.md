@@ -49,6 +49,7 @@ Adopt now:
 - Enable dependency injection validation in development and test environments.
 - Validate important configuration at startup.
 - Keep solution/project files modern SDK-style.
+- Add GitHub Actions CI in the first implementation PR.
 
 Acceptance criteria:
 
@@ -57,6 +58,7 @@ Acceptance criteria:
 - Package versions are centralized.
 - Invalid DI graphs fail during development/test startup.
 - Missing required config fails with a clear message.
+- CI restores, builds, and tests on pull requests and pushes to `main`.
 
 ## Validation
 
@@ -253,6 +255,7 @@ These are not rejected permanently. They are deferred to keep the first implemen
 
 Before merging implementation work, check:
 
+- Does CI pass?
 - Does the change keep calendar policy on the server/domain side?
 - Are warnings still treated as errors?
 - Are package versions centralized?

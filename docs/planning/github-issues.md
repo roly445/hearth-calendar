@@ -53,6 +53,7 @@ Create the initial .NET solution skeleton for Hearth Calendar.
 - Test project.
 - Central package management.
 - Warnings as errors.
+- GitHub Actions CI.
 - Basic health endpoint.
 
 ## Acceptance Criteria
@@ -60,6 +61,10 @@ Create the initial .NET solution skeleton for Hearth Calendar.
 - Solution contains `HearthCalendar.Server`, `HearthCalendar.Client`, `HearthCalendar.Shared`, and tests.
 - `dotnet build` passes with warnings as errors.
 - Tests run from the command line.
+- CI runs on pull requests targeting `main`.
+- CI runs on pushes to `main`.
+- CI restores, builds, and runs tests.
+- CI does not require real secrets for normal build/test.
 - Package versions are centralized.
 - Server exposes an explicitly anonymous health endpoint.
 - DI validation is enabled in development/test environments.
@@ -72,6 +77,7 @@ Create the initial .NET solution skeleton for Hearth Calendar.
 ## Notes
 
 Follow `docs/engineering/dotnet-app-defaults-compliance.md` and `docs/engineering/bluqube-usage.md`.
+Branch protection should be configured after the CI workflow exists and the check name is visible in GitHub.
 ```
 
 ## Issue 2: Phase 1: Implement calendar brain domain model and deterministic review

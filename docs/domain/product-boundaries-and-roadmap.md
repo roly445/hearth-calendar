@@ -140,50 +140,58 @@ Build the first vertical slice:
    - `VirtualCalendar`
    - `AuditEntry`
 
-2. Implement deterministic review logic:
+2. Add solution/build foundation:
+   - hosted Blazor WebAssembly solution
+   - central package management
+   - warnings as errors
+   - test project
+   - GitHub Actions CI
+
+3. Implement deterministic review logic:
    - birthday and anniversary routing
    - personal and family routing
    - child responsibility inference
    - ambiguity handling
    - basic clash detection
 
-3. Add no-op AI review provider:
+4. Add no-op AI review provider:
    - provider abstraction exists
    - AI can be disabled
    - final decision remains app-owned
 
-4. Add tests before implementation using red/green/refactor:
+5. Add tests before implementation using red/green/refactor:
    - key routing examples
    - ambiguity staging
    - past event rules
    - clash detection
    - responsibility self-clash exclusion
 
-5. Add persistence:
+6. Add persistence:
    - Marten documents for intents, decisions, events, audit, credentials
    - approved event queries
    - review queue queries
 
-6. Add first intake endpoint:
+7. Add first intake endpoint:
 
 ```http
 POST /api/intake/event
 ```
 
-7. Add first web UI slice:
+8. Add first web UI slice:
    - create event
    - review queue
    - upcoming events
 
-8. Add SignalR notifications:
+9. Add SignalR notifications:
    - review queue changed
    - calendar events changed
 
-9. Add read-only ICS feeds after approved event projections are stable.
+10. Add read-only ICS feeds after approved event projections are stable.
 
 ## First Milestone Acceptance Criteria
 
 - No external calendar server is required.
+- CI restores, builds, and tests the solution on pull requests and pushes to `main`.
 - The app can accept event intent through a server endpoint.
 - The review pipeline can approve, reject, or stage an intent.
 - Approved events are persisted in Marten.
