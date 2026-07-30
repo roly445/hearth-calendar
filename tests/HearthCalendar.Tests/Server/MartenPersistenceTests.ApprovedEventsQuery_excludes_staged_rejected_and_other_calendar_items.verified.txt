@@ -1,0 +1,73 @@
+{
+  AdultA: [
+    {
+      Title: Dentist for Adult A,
+      PrimaryCalendar: AdultA,
+      Category: Personal,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-30,
+        StartTime: 09:00:00,
+        EndTime: 09:30:00,
+        IsAllDay: false
+      },
+      Participants: [
+        {
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ]
+    },
+    {
+      Title: Family BBQ,
+      PrimaryCalendar: Family,
+      Category: Family,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-30,
+        IsAllDay: true
+      },
+      Participants: [
+        {
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        },
+        {
+          PersonId: adult-b,
+          Role: Attendee,
+          BusyStatus: Busy
+        },
+        {
+          PersonId: child,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ]
+    }
+  ],
+  Events: [
+    {
+      Title: Adult B birthday,
+      PrimaryCalendar: Events,
+      Category: Birthday,
+      BusyStatus: Free,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-30,
+        IsAllDay: true
+      },
+      Recurrence: Yearly,
+      Participants: [
+        {
+          PersonId: adult-b,
+          Role: Attendee,
+          BusyStatus: Free
+        }
+      ]
+    }
+  ]
+}

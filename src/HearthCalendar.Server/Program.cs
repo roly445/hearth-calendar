@@ -1,3 +1,4 @@
+using HearthCalendar.Server.Persistence;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +13,7 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
+        builder.Services.AddHearthCalendarPersistence(builder.Configuration);
 
         builder.Services
             .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

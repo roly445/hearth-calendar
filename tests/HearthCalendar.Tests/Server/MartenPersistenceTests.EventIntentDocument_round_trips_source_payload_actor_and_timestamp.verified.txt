@@ -1,0 +1,13 @@
+{
+  HasId: true,
+  Source: Test,
+  SourceMode: Passive,
+  RawText: Dentist for Adult A,
+  Payload: {
+    Date: 2026-07-30,
+    StartTime: 09:00:00,
+    EndTime: 09:30:00
+  },
+  SubmittedAt: DateTimeOffset_1,
+  SubmittedBy: system
+}
