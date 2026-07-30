@@ -1,0 +1,48 @@
+[
+  {
+    Status: Staged,
+    Mode: Automatic,
+    HasAiSuggestionLink: false,
+    Reasons: [
+      {
+        Code: AmbiguousIntent,
+        Message: The intent does not identify enough calendar details.
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  },
+  {
+    Status: Staged,
+    Mode: Automatic,
+    HasAiSuggestionLink: false,
+    Event: {
+      Title: Dentist for Adult A,
+      PrimaryCalendar: AdultA,
+      Category: Personal,
+      BusyStatus: Busy,
+      ReviewStatus: Staged,
+      Time: {
+        Date: 2026-07-29,
+        StartTime: 09:00:00,
+        EndTime: 09:30:00,
+        IsAllDay: false
+      },
+      Participants: [
+        {
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ]
+    },
+    Reasons: [
+      {
+        Code: PastEvent,
+        Message: Past non-reference events need confirmation.
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  }
+]

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -14,7 +15,7 @@ public sealed class HealthEndpointTests
     [Fact]
     public async Task HealthEndpointMatchesSnapshot()
     {
-        await using var factory = new WebApplicationFactory<HearthCalendar.Server.Program>();
+        await using var factory = CreateFactory();
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/health");
@@ -43,7 +44,7 @@ public sealed class HealthEndpointTests
     [Fact]
     public async Task ServerDefaultsMatchSnapshot()
     {
-        await using var factory = new WebApplicationFactory<HearthCalendar.Server.Program>();
+        await using var factory = CreateFactory();
         _ = factory.CreateClient();
 
         var authorizationOptions = factory.Services
@@ -65,4 +66,18 @@ public sealed class HealthEndpointTests
             }
         });
     }
+
+    private static WebApplicationFactory<HearthCalendar.Server.Program> CreateFactory() =>
+        new WebApplicationFactory<HearthCalendar.Server.Program>()
+            .WithWebHostBuilder(builder =>
+            {
+                builder.ConfigureAppConfiguration((_, configuration) =>
+                {
+                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["Database:ConnectionString"] = "Host=localhost;Database=hearth_calendar_test",
+                        ["Database:SchemaName"] = "hearth_calendar_test"
+                    });
+                });
+            });
 }
