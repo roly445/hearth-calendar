@@ -3,6 +3,7 @@
 @inject ICommandRunner CommandRunner
 @inject IQueryRunner QueryRunner
 @inject CalendarUpdateClient Updates
+@inject OfflineCalendarStore OfflineStore
 
 <PageTitle>Hearth Calendar</PageTitle>
 
@@ -12,7 +13,14 @@
             <p class="eyebrow">Family operations</p>
             <h1>Hearth Calendar</h1>
         </div>
-        <button class="refresh-button" title="Refresh" @onclick="RefreshAsync" disabled="@isLoading">Refresh</button>
+        <div class="header-actions">
+            <span class="connection-pill @(isOffline ? "offline" : "online")">@(isOffline ? "Offline" : "Online")</span>
+            @if (isStale)
+            {
+                <span class="connection-pill stale">Stale</span>
+            }
+            <button class="refresh-button" title="Refresh" @onclick="RefreshAsync" disabled="@isLoading">Refresh</button>
+        </div>
     </header>
 
     @if (!string.IsNullOrWhiteSpace(message))
@@ -27,7 +35,7 @@
                 <div class="field-stack">
                     <label>
                         Event
-                        <textarea @bind="createModel.RawText" rows="4" maxlength="500" placeholder="Family dinner on 12 August"></textarea>
+                        <textarea @bind="createModel.RawText" rows="4" maxlength="500" placeholder="Shared meal on 12 August"></textarea>
                     </label>
                     <div class="field-row">
                         <label>
@@ -46,6 +54,22 @@
                     <button class="primary-action" type="submit" disabled="@isSubmitting">Create</button>
                 </div>
             </EditForm>
+            @if (queuedIntents.Count > 0)
+            {
+                <div class="queued-list">
+                    <h3>Queued for review</h3>
+                    @foreach (var intent in queuedIntents)
+                    {
+                        <article class="queued-item">
+                            <div>
+                                <strong>@intent.RawText</strong>
+                                <p>@FormatQueuedIntent(intent)</p>
+                            </div>
+                            <span class="status-pill">@QueueStatus(intent)</span>
+                        </article>
+                    }
+                </div>
+            }
         </section>
 
         <section class="panel review-panel">
@@ -92,9 +116,9 @@
                             <div class="field-stack edit-fields">
                                 <textarea @bind="editText[item.ReviewDecisionId]" rows="2" maxlength="500"></textarea>
                                 <div class="command-row">
-                                    <button type="button" @onclick="() => EditAsync(item)" disabled="@isSubmitting">Edit</button>
-                                    <button type="button" @onclick="() => ApproveAsync(item)" disabled="@isSubmitting || item.Candidate is null">Approve</button>
-                                    <button type="button" @onclick="() => RejectAsync(item)" disabled="@isSubmitting">Reject</button>
+                                    <button type="button" @onclick="() => EditAsync(item)" disabled="@(!CanUseOnlineActions || isSubmitting)">Edit</button>
+                                    <button type="button" @onclick="() => ApproveAsync(item)" disabled="@(!CanUseOnlineActions || isSubmitting || item.Candidate is null)">Approve</button>
+                                    <button type="button" @onclick="() => RejectAsync(item)" disabled="@(!CanUseOnlineActions || isSubmitting)">Reject</button>
                                 </div>
                             </div>
                         </article>
@@ -138,15 +162,23 @@
     private readonly Dictionary<Guid, string> editText = [];
     private IReadOnlyList<ReviewQueueItemDto> reviewItems = [];
     private IReadOnlyList<CalendarEventSummaryDto> upcomingEvents = [];
+    private IReadOnlyList<OfflineQueuedEventIntent> queuedIntents = [];
     private string? reviewStatusMessage;
     private string? eventsStatusMessage;
     private bool isLoading;
     private bool isSubmitting;
+    private bool isOffline;
+    private bool isStale;
     private string? message;
+    private bool CanUseOnlineActions => !isOffline && !isStale && !isLoading;
 
     protected override async Task OnInitializedAsync()
     {
         Updates.CalendarUpdated += OnCalendarUpdatedAsync;
+        Updates.Reconnected += OnReconnectedAsync;
+        OfflineStore.BrowserCameOnline += OnBrowserOnlineAsync;
+        await OfflineStore.StartOnlineListenerAsync();
+        await LoadOfflineStateAsync();
         await StartNotificationsAsync();
         await RefreshAsync();
     }
@@ -169,9 +201,39 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    private async Task OnReconnectedAsync()
+    {
+        await RefreshAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnBrowserOnlineAsync()
+    {
+        await StartNotificationsAsync();
+        await RefreshAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task RefreshAsync()
     {
         isLoading = true;
+        queuedIntents = await OfflineStore.ReadOutboxAsync();
+        isOffline = !await IsOnlineAsync();
+
+        if (isOffline)
+        {
+            await LoadOfflineStateAsync();
+            reviewItems = [];
+            reviewStatusMessage = "Review actions need a fresh online connection.";
+            eventsStatusMessage ??= "Upcoming events are unavailable offline until an online snapshot has been cached.";
+            isLoading = false;
+            return;
+        }
+
+        isStale = false;
+        await SyncQueuedIntentsAsync();
+        queuedIntents = await OfflineStore.ReadOutboxAsync();
+
         var today = DateOnly.FromDateTime(DateTime.Today);
         var reviewResult = await QueryRunner.Send(new GetReviewQueueQuery());
         var eventResult = await QueryRunner.Send(new GetUpcomingEventsQuery(today, today.AddDays(60)));
@@ -186,6 +248,11 @@
             eventResult.Status == QueryResultStatus.Succeeded ? eventResult.Data.Items : [],
             "No approved events in the next 60 days.",
             "Upcoming events are unavailable.");
+
+        if (eventResult.Status is QueryResultStatus.Succeeded or QueryResultStatus.Empty)
+        {
+            await OfflineStore.StoreSnapshotAsync(upcomingEvents, DateTimeOffset.Now);
+        }
 
         foreach (var item in reviewItems)
         {
@@ -203,11 +270,31 @@
             return;
         }
 
+        if (!await IsOnlineAsync())
+        {
+            await OfflineStore.QueueEventIntentAsync(
+                createModel.RawText,
+                ParseDate(createModel.DateText),
+                ParseTime(createModel.StartTimeText),
+                ParseTime(createModel.EndTimeText),
+                DateTimeOffset.Now);
+            ClearCreateForm();
+            queuedIntents = await OfflineStore.ReadOutboxAsync();
+            isOffline = true;
+            message = "Event queued offline. It will sync for review when the app reconnects.";
+            return;
+        }
+
         await RunCommandAsync(new SubmitWebEventIntentCommand(
             createModel.RawText,
             ParseDate(createModel.DateText),
             ParseTime(createModel.StartTimeText),
             ParseTime(createModel.EndTimeText)));
+        ClearCreateForm();
+    }
+
+    private void ClearCreateForm()
+    {
         createModel.RawText = "";
         createModel.DateText = "";
         createModel.StartTimeText = "";
@@ -231,6 +318,13 @@
     private async Task RunCommandAsync<TCommand>(TCommand command)
         where TCommand : ICommand<ReviewActionResult>
     {
+        if (!await IsOnlineAsync())
+        {
+            isOffline = true;
+            message = "This action needs a fresh online connection.";
+            return;
+        }
+
         isSubmitting = true;
         var result = await CommandRunner.Send(command);
         message = result.Status == CommandResultStatus.Succeeded
@@ -240,6 +334,83 @@
 
         await RefreshAsync();
     }
+
+    private async Task SyncQueuedIntentsAsync()
+    {
+        var outbox = (await OfflineStore.ReadOutboxAsync()).ToArray();
+
+        foreach (var queued in outbox.ToArray())
+        {
+            var attemptedAt = DateTimeOffset.Now;
+            outbox = ReplaceQueuedIntent(outbox, OfflineCalendarState.MarkSyncing(queued, attemptedAt));
+            await OfflineStore.StoreOutboxAsync(outbox);
+
+            try
+            {
+                var result = await CommandRunner.Send(new SubmitWebEventIntentCommand(
+                    queued.RawText,
+                    queued.Date,
+                    queued.StartTime,
+                    queued.EndTime));
+
+                if (result.Status == CommandResultStatus.Succeeded)
+                {
+                    outbox = OfflineCalendarState.RemoveSynced(outbox, queued.LocalId).ToArray();
+                    message = "Queued event synced and is waiting for server review.";
+                }
+                else
+                {
+                    outbox = ReplaceQueuedIntent(
+                        outbox,
+                        OfflineCalendarState.MarkSyncFailed(queued, attemptedAt, CommandMessage(result.Status)));
+                }
+            }
+            catch (Exception)
+            {
+                outbox = ReplaceQueuedIntent(
+                    outbox,
+                    OfflineCalendarState.MarkSyncFailed(queued, attemptedAt, "Sync will retry when the connection is stable."));
+            }
+
+            await OfflineStore.StoreOutboxAsync(outbox);
+        }
+    }
+
+    private async Task LoadOfflineStateAsync()
+    {
+        queuedIntents = await OfflineStore.ReadOutboxAsync();
+        var snapshot = await OfflineStore.ReadSnapshotAsync();
+
+        if (snapshot is null)
+        {
+            isStale = false;
+            upcomingEvents = [];
+            return;
+        }
+
+        isStale = true;
+        upcomingEvents = snapshot.UpcomingEvents;
+        eventsStatusMessage = $"Showing stale upcoming events cached {snapshot.CachedAt.LocalDateTime:g}.";
+    }
+
+    private async Task<bool> IsOnlineAsync()
+    {
+        try
+        {
+            return await OfflineStore.IsOnlineAsync();
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    private static OfflineQueuedEventIntent[] ReplaceQueuedIntent(
+        IReadOnlyList<OfflineQueuedEventIntent> outbox,
+        OfflineQueuedEventIntent replacement) =>
+        outbox
+            .Select(intent => intent.LocalId == replacement.LocalId ? replacement : intent)
+            .ToArray();
 
     private void SetDate(ChangeEventArgs args) =>
         createModel.DateText = args.Value?.ToString() ?? "";
@@ -280,6 +451,22 @@
             _ => "The action could not be completed."
         };
 
+    private static string QueueStatus(OfflineQueuedEventIntent intent) =>
+        intent.Status switch
+        {
+            OfflineQueuedEventStatus.SyncFailed => "Retry",
+            OfflineQueuedEventStatus.Syncing => "Syncing",
+            _ => "Pending"
+        };
+
+    private static string FormatQueuedIntent(OfflineQueuedEventIntent intent)
+    {
+        var date = intent.Date?.ToString("dd MMM") ?? "No date";
+        var state = intent.LastError is null ? "waiting to sync" : intent.LastError;
+
+        return $"{date} - {state}";
+    }
+
     private static DateOnly? ParseDate(string? value) =>
         DateOnly.TryParse(value, out var date) ? date : null;
 
@@ -289,6 +476,8 @@
     public ValueTask DisposeAsync()
     {
         Updates.CalendarUpdated -= OnCalendarUpdatedAsync;
+        Updates.Reconnected -= OnReconnectedAsync;
+        OfflineStore.BrowserCameOnline -= OnBrowserOnlineAsync;
         return Updates.DisposeAsync();
     }
 

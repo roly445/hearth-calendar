@@ -21,6 +21,30 @@
       }
     ]
   },
+  Installability: {
+    HasName: true,
+    HasShortName: true,
+    HasStandaloneDisplay: true,
+    HasStartUrl: true,
+    HasMaskableSizedIcons: [
+      192x192,
+      512x512
+    ]
+  },
+  PublishedServiceWorkerPolicy: {
+    UsesJsonAllowlist: true,
+    AvoidsBroadJsonCaching: true,
+    ExcludesCommands: true,
+    ExcludesQueries: true,
+    ExcludesHubs: true,
+    ExcludesAuth: true,
+    ExcludesFeeds: true,
+    ExcludesApi: true
+  },
+  OfflineStoragePolicy: {
+    UsesIndexedDb: true,
+    AvoidsLocalStorage: true
+  },
   Assets: [
     {
       Path: src/HearthCalendar.Client/wwwroot/manifest.webmanifest,
@@ -32,6 +56,10 @@
     },
     {
       Path: src/HearthCalendar.Client/wwwroot/service-worker.published.js,
+      Exists: true
+    },
+    {
+      Path: src/HearthCalendar.Client/wwwroot/offline-calendar.js,
       Exists: true
     }
   ],

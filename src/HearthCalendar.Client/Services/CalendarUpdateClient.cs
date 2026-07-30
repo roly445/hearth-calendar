@@ -9,27 +9,42 @@ public sealed class CalendarUpdateClient(NavigationManager navigationManager) : 
     private HubConnection? connection;
 
     public event Func<CalendarUpdateNotification, Task>? CalendarUpdated;
+    public event Func<Task>? Reconnected;
 
     public async Task StartAsync()
     {
-        if (connection is not null)
+        if (connection?.State is HubConnectionState.Connected or HubConnectionState.Connecting or HubConnectionState.Reconnecting)
         {
             return;
         }
 
-        connection = new HubConnectionBuilder()
+        if (connection is not null)
+        {
+            await connection.DisposeAsync();
+            connection = null;
+        }
+
+        var nextConnection = new HubConnectionBuilder()
             .WithUrl(navigationManager.ToAbsoluteUri("/hubs/calendar-updates"))
             .WithAutomaticReconnect()
             .Build();
-        connection.On<CalendarUpdateNotification>("CalendarUpdated", async notification =>
+        nextConnection.On<CalendarUpdateNotification>("CalendarUpdated", async notification =>
         {
             if (CalendarUpdated is not null)
             {
                 await CalendarUpdated.Invoke(notification);
             }
         });
+        nextConnection.Reconnected += async _ =>
+        {
+            if (Reconnected is not null)
+            {
+                await Reconnected.Invoke();
+            }
+        };
 
-        await connection.StartAsync();
+        await nextConnection.StartAsync();
+        connection = nextConnection;
     }
 
     public async ValueTask DisposeAsync()

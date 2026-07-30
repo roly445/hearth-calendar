@@ -25,6 +25,7 @@ public class Program
         builder.Services.AddTransient<CommandResultConverter>();
         builder.Services.AddBluQubeRequesters();
         builder.Services.AddScoped<CalendarUpdateClient>();
+        builder.Services.AddScoped<OfflineCalendarStore>();
 
         await builder.Build().RunAsync();
     }

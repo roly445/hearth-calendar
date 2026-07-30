@@ -13,17 +13,44 @@ public sealed class PwaAssetTests
         var serviceWorkerPath = Path.Combine(root, "src/HearthCalendar.Client/wwwroot/service-worker.js");
         var publishedServiceWorkerPath = Path.Combine(root, "src/HearthCalendar.Client/wwwroot/service-worker.published.js");
         var manifestJson = await File.ReadAllTextAsync(manifestPath);
+        var publishedServiceWorker = await File.ReadAllTextAsync(publishedServiceWorkerPath);
+        var offlineStorage = await File.ReadAllTextAsync(Path.Combine(root, "src/HearthCalendar.Client/wwwroot/offline-calendar.js"));
         var manifest = JsonSerializer.Deserialize<WebManifestSnapshot>(manifestJson)
             ?? throw new InvalidOperationException("Could not parse web manifest.");
 
         await Verifier.Verify(new
         {
             Manifest = manifest,
+            Installability = new
+            {
+                HasName = !string.IsNullOrWhiteSpace(manifest.Name),
+                HasShortName = !string.IsNullOrWhiteSpace(manifest.ShortName),
+                HasStandaloneDisplay = manifest.Display == "standalone",
+                HasStartUrl = !string.IsNullOrWhiteSpace(manifest.StartUrl),
+                HasMaskableSizedIcons = manifest.Icons.Select(icon => icon.Sizes).Order().ToArray()
+            },
+            PublishedServiceWorkerPolicy = new
+            {
+                UsesJsonAllowlist = publishedServiceWorker.Contains("offlineJsonAssetsInclude", StringComparison.Ordinal),
+                AvoidsBroadJsonCaching = !publishedServiceWorker.Contains("/\\.json$/", StringComparison.Ordinal),
+                ExcludesCommands = publishedServiceWorker.Contains("/^\\/commands\\//", StringComparison.Ordinal),
+                ExcludesQueries = publishedServiceWorker.Contains("/^\\/queries\\//", StringComparison.Ordinal),
+                ExcludesHubs = publishedServiceWorker.Contains("/^\\/hubs\\//", StringComparison.Ordinal),
+                ExcludesAuth = publishedServiceWorker.Contains("/^\\/auth\\//", StringComparison.Ordinal),
+                ExcludesFeeds = publishedServiceWorker.Contains("/^\\/feeds\\//", StringComparison.Ordinal),
+                ExcludesApi = publishedServiceWorker.Contains("/^\\/api\\//", StringComparison.Ordinal)
+            },
+            OfflineStoragePolicy = new
+            {
+                UsesIndexedDb = offlineStorage.Contains("indexedDB.open", StringComparison.Ordinal),
+                AvoidsLocalStorage = !offlineStorage.Contains("localStorage", StringComparison.Ordinal)
+            },
             Assets = new[]
             {
                 DescribeAsset(root, manifestPath),
                 DescribeAsset(root, serviceWorkerPath),
-                DescribeAsset(root, publishedServiceWorkerPath)
+                DescribeAsset(root, publishedServiceWorkerPath),
+                DescribeAsset(root, Path.Combine(root, "src/HearthCalendar.Client/wwwroot/offline-calendar.js"))
             },
             IconCount = manifest.Icons.Length
         });

@@ -8,8 +8,10 @@ self.addEventListener('fetch', event => event.respondWith(onFetch(event)));
 
 const cacheNamePrefix = 'offline-cache-';
 const cacheName = `${cacheNamePrefix}${self.assetsManifest.version}`;
-const offlineAssetsInclude = [ /\.dll$/, /\.pdb$/, /\.wasm/, /\.html/, /\.js$/, /\.json$/, /\.css$/, /\.woff$/, /\.png$/, /\.jpe?g$/, /\.gif$/, /\.ico$/, /\.blat$/, /\.dat$/, /\.webmanifest$/ ];
+const offlineAssetsInclude = [ /\.dll$/, /\.pdb$/, /\.wasm/, /\.html/, /\.js$/, /\.css$/, /\.woff$/, /\.png$/, /\.jpe?g$/, /\.gif$/, /\.ico$/, /\.blat$/, /\.dat$/, /\.webmanifest$/ ];
 const offlineAssetsExclude = [ /^service-worker\.js$/ ];
+const offlineJsonAssetsInclude = [ /^_framework\/blazor\.boot\.json$/ ];
+const neverCacheRequestPath = [ /^\/commands\//, /^\/queries\//, /^\/hubs\//, /^\/auth\//, /^\/feeds\//, /^\/api\// ];
 
 // Replace with your base path if you are hosting on a subfolder. Ensure there is a trailing '/'.
 const base = "/";
@@ -21,7 +23,7 @@ async function onInstall(event) {
 
     // Fetch and cache all matching items from the assets manifest
     const assetsRequests = self.assetsManifest.assets
-        .filter(asset => offlineAssetsInclude.some(pattern => pattern.test(asset.url)))
+        .filter(asset => isCacheableOfflineAsset(asset.url))
         .filter(asset => !offlineAssetsExclude.some(pattern => pattern.test(asset.url)))
         .map(asset => new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' }));
     await caches.open(cacheName).then(cache => cache.addAll(assetsRequests));
@@ -38,6 +40,11 @@ async function onActivate(event) {
 }
 
 async function onFetch(event) {
+    const requestUrl = new URL(event.request.url);
+    if (requestUrl.origin !== self.origin || neverCacheRequestPath.some(pattern => pattern.test(requestUrl.pathname))) {
+        return fetch(event.request);
+    }
+
     let cachedResponse = null;
     if (event.request.method === 'GET') {
         // For all navigation requests, try to serve index.html from cache,
@@ -52,4 +59,9 @@ async function onFetch(event) {
     }
 
     return cachedResponse || fetch(event.request);
+}
+
+function isCacheableOfflineAsset(assetUrl) {
+    return offlineAssetsInclude.some(pattern => pattern.test(assetUrl))
+        || offlineJsonAssetsInclude.some(pattern => pattern.test(assetUrl));
 }
