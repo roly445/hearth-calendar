@@ -1,7 +1,6 @@
+using HearthCalendar.Server.Auth;
+using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace HearthCalendar.Server;
 
@@ -14,16 +13,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
         builder.Services.AddHearthCalendarPersistence(builder.Configuration);
-
-        builder.Services
-            .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-            .AddCookie();
-
-        builder.Services
-            .AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .Build());
+        builder.Services.AddHearthCalendarAuth(builder.Configuration);
 
         builder.Services.AddCors(options =>
         {
@@ -60,6 +50,10 @@ public class Program
         app.MapGet("/health", () => Results.Ok(new HealthResponse("Healthy")))
             .AllowAnonymous();
 
+        app.MapGet("/api/admin/session", () => Results.Ok(new AdminSessionResponse("authenticated")))
+            .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
+        app.MapIntakeEndpoints();
+
         app.MapFallbackToFile("index.html")
             .AllowAnonymous();
 
@@ -87,6 +81,8 @@ public class Program
 }
 
 public sealed record HealthResponse(string Status);
+
+public sealed record AdminSessionResponse(string Status);
 
 internal static class SecurityHeadersMiddleware
 {
