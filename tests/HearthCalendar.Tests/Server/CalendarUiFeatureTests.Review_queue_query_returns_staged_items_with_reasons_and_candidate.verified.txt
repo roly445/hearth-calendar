@@ -1,0 +1,34 @@
+{
+  Items: [
+    {
+      ReviewDecisionId: Guid_1,
+      IntentId: Guid_2,
+      RawText: Adult A dentist,
+      Status: Staged,
+      Mode: Automatic,
+      Source: Web,
+      SubmittedBy: system,
+      SubmittedAt: DateTimeOffset_1,
+      Candidate: {
+        EventId: Guid_3,
+        Title: Adult A dentist,
+        Date: Date_1,
+        StartTime: Time_1,
+        EndTime: Time_2,
+        IsAllDay: false,
+        Calendar: AdultA,
+        Category: Personal,
+        BusyStatus: Busy,
+        Participants: [
+          adult-a
+        ]
+      },
+      Reasons: [
+        {
+          Code: PastEvent,
+          Message: Past non-reference events need confirmation.
+        }
+      ]
+    }
+  ]
+}

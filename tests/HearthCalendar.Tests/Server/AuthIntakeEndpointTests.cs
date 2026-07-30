@@ -305,6 +305,24 @@ public sealed class AuthIntakeEndpointTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<ReviewDecision?> LoadReviewDecisionAsync(
+            ReviewDecisionId id,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task StoreReviewDecisionAsync(
+            ReviewDecision decision,
+            AuditEntry auditEntry,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task StoreEditedReviewOutcomeAsync(
+            ReviewDecision originalDecision,
+            EventIntent revisedIntent,
+            ReviewOutcome revisedOutcome,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CalendarEvent>> QueryApprovedEventsAsync(
             DateOnly from,
             DateOnly to,

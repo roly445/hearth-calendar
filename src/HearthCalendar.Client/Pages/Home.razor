@@ -1,5 +1,305 @@
-﻿@page "/"
+@page "/"
+@implements IAsyncDisposable
+@inject ICommandRunner CommandRunner
+@inject IQueryRunner QueryRunner
+@inject CalendarUpdateClient Updates
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Hearth Calendar</PageTitle>
 
-<h1>Hearth Calendar</h1>
+<section class="workspace">
+    <header class="workspace-header">
+        <div>
+            <p class="eyebrow">Family operations</p>
+            <h1>Hearth Calendar</h1>
+        </div>
+        <button class="refresh-button" title="Refresh" @onclick="RefreshAsync" disabled="@isLoading">Refresh</button>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <div class="notice">@message</div>
+    }
+
+    <div class="dashboard-grid">
+        <section class="panel create-panel">
+            <h2>Create Event</h2>
+            <EditForm Model="createModel" OnValidSubmit="SubmitEventAsync">
+                <div class="field-stack">
+                    <label>
+                        Event
+                        <textarea @bind="createModel.RawText" rows="4" maxlength="500" placeholder="Family dinner on 12 August"></textarea>
+                    </label>
+                    <div class="field-row">
+                        <label>
+                            Date
+                            <input type="date" value="@createModel.DateText" @onchange="SetDate" />
+                        </label>
+                        <label>
+                            Start
+                            <input type="time" value="@createModel.StartTimeText" @onchange="SetStartTime" />
+                        </label>
+                        <label>
+                            End
+                            <input type="time" value="@createModel.EndTimeText" @onchange="SetEndTime" />
+                        </label>
+                    </div>
+                    <button class="primary-action" type="submit" disabled="@isSubmitting">Create</button>
+                </div>
+            </EditForm>
+        </section>
+
+        <section class="panel review-panel">
+            <h2>Review Queue</h2>
+            @if (!string.IsNullOrWhiteSpace(reviewStatusMessage))
+            {
+                <p class="empty-state">@reviewStatusMessage</p>
+            }
+            else if (reviewItems.Count == 0)
+            {
+                <p class="empty-state">No staged items.</p>
+            }
+            else
+            {
+                <div class="item-list">
+                    @foreach (var item in reviewItems)
+                    {
+                        <article class="review-item">
+                            <div class="item-heading">
+                                <div>
+                                    <h3>@item.RawText</h3>
+                                    <p>@item.Source - @item.Mode - @item.Status</p>
+                                </div>
+                                <span class="status-pill">@item.Status</span>
+                            </div>
+                            @if (item.Candidate is not null)
+                            {
+                                <p class="candidate">@FormatEvent(item.Candidate)</p>
+                            }
+                            @if (item.AiSuggestion is not null)
+                            {
+                                <p class="suggestion">@item.AiSuggestion.Provider suggested @item.AiSuggestion.SuggestedTitle with @item.AiSuggestion.Confidence confidence.</p>
+                            }
+                            <ul class="reason-list">
+                                @foreach (var reason in item.Reasons)
+                                {
+                                    <li>@reason.Code: @reason.Message</li>
+                                }
+                                @foreach (var clash in item.Clashes)
+                                {
+                                    <li>@clash.Severity: @clash.Summary</li>
+                                }
+                            </ul>
+                            <div class="field-stack edit-fields">
+                                <textarea @bind="editText[item.ReviewDecisionId]" rows="2" maxlength="500"></textarea>
+                                <div class="command-row">
+                                    <button type="button" @onclick="() => EditAsync(item)" disabled="@isSubmitting">Edit</button>
+                                    <button type="button" @onclick="() => ApproveAsync(item)" disabled="@isSubmitting || item.Candidate is null">Approve</button>
+                                    <button type="button" @onclick="() => RejectAsync(item)" disabled="@isSubmitting">Reject</button>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+
+        <section class="panel events-panel">
+            <h2>Upcoming</h2>
+            @if (!string.IsNullOrWhiteSpace(eventsStatusMessage))
+            {
+                <p class="empty-state">@eventsStatusMessage</p>
+            }
+            else if (upcomingEvents.Count == 0)
+            {
+                <p class="empty-state">No approved events in the next 60 days.</p>
+            }
+            else
+            {
+                <div class="event-list">
+                    @foreach (var calendarEvent in upcomingEvents)
+                    {
+                        <article class="event-row">
+                            <time datetime="@calendarEvent.Date.ToString("O")">@calendarEvent.Date.ToString("dd MMM")</time>
+                            <div>
+                                <h3>@calendarEvent.Title</h3>
+                                <p>@FormatEvent(calendarEvent)</p>
+                            </div>
+                            <span>@calendarEvent.Calendar</span>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</section>
+
+@code {
+    private readonly CreateEventModel createModel = new();
+    private readonly Dictionary<Guid, string> editText = [];
+    private IReadOnlyList<ReviewQueueItemDto> reviewItems = [];
+    private IReadOnlyList<CalendarEventSummaryDto> upcomingEvents = [];
+    private string? reviewStatusMessage;
+    private string? eventsStatusMessage;
+    private bool isLoading;
+    private bool isSubmitting;
+    private string? message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Updates.CalendarUpdated += OnCalendarUpdatedAsync;
+        await StartNotificationsAsync();
+        await RefreshAsync();
+    }
+
+    private async Task StartNotificationsAsync()
+    {
+        try
+        {
+            await Updates.StartAsync();
+        }
+        catch (Exception)
+        {
+            message = "Live updates are unavailable for this session.";
+        }
+    }
+
+    private async Task OnCalendarUpdatedAsync(CalendarUpdateNotification notification)
+    {
+        await RefreshAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshAsync()
+    {
+        isLoading = true;
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var reviewResult = await QueryRunner.Send(new GetReviewQueueQuery());
+        var eventResult = await QueryRunner.Send(new GetUpcomingEventsQuery(today, today.AddDays(60)));
+
+        (reviewItems, reviewStatusMessage) = ReadCollectionResult(
+            reviewResult.Status,
+            reviewResult.Status == QueryResultStatus.Succeeded ? reviewResult.Data.Items : [],
+            "No staged items.",
+            "Review queue is unavailable.");
+        (upcomingEvents, eventsStatusMessage) = ReadCollectionResult(
+            eventResult.Status,
+            eventResult.Status == QueryResultStatus.Succeeded ? eventResult.Data.Items : [],
+            "No approved events in the next 60 days.",
+            "Upcoming events are unavailable.");
+
+        foreach (var item in reviewItems)
+        {
+            editText.TryAdd(item.ReviewDecisionId, item.RawText);
+        }
+
+        isLoading = false;
+    }
+
+    private async Task SubmitEventAsync()
+    {
+        if (string.IsNullOrWhiteSpace(createModel.RawText))
+        {
+            message = "Add event details first.";
+            return;
+        }
+
+        await RunCommandAsync(new SubmitWebEventIntentCommand(
+            createModel.RawText,
+            ParseDate(createModel.DateText),
+            ParseTime(createModel.StartTimeText),
+            ParseTime(createModel.EndTimeText)));
+        createModel.RawText = "";
+        createModel.DateText = "";
+        createModel.StartTimeText = "";
+        createModel.EndTimeText = "";
+    }
+
+    private Task ApproveAsync(ReviewQueueItemDto item) =>
+        RunCommandAsync(new ApproveReviewItemCommand(item.ReviewDecisionId));
+
+    private Task RejectAsync(ReviewQueueItemDto item) =>
+        RunCommandAsync(new RejectReviewItemCommand(item.ReviewDecisionId));
+
+    private Task EditAsync(ReviewQueueItemDto item) =>
+        RunCommandAsync(new EditReviewItemCommand(
+            item.ReviewDecisionId,
+            editText.TryGetValue(item.ReviewDecisionId, out var text) ? text : item.RawText,
+            item.Candidate?.Date,
+            item.Candidate?.StartTime,
+            item.Candidate?.EndTime));
+
+    private async Task RunCommandAsync<TCommand>(TCommand command)
+        where TCommand : ICommand<ReviewActionResult>
+    {
+        isSubmitting = true;
+        var result = await CommandRunner.Send(command);
+        message = result.Status == CommandResultStatus.Succeeded
+            ? result.Data.Message
+            : CommandMessage(result.Status);
+        isSubmitting = false;
+
+        await RefreshAsync();
+    }
+
+    private void SetDate(ChangeEventArgs args) =>
+        createModel.DateText = args.Value?.ToString() ?? "";
+
+    private void SetStartTime(ChangeEventArgs args) =>
+        createModel.StartTimeText = args.Value?.ToString() ?? "";
+
+    private void SetEndTime(ChangeEventArgs args) =>
+        createModel.EndTimeText = args.Value?.ToString() ?? "";
+
+    private static string FormatEvent(CalendarEventSummaryDto calendarEvent)
+    {
+        var time = calendarEvent.IsAllDay
+            ? "All day"
+            : $"{calendarEvent.StartTime:HH\\:mm} to {calendarEvent.EndTime:HH\\:mm}";
+
+        return $"{time} - {calendarEvent.Category} - {string.Join(", ", calendarEvent.Participants)}";
+    }
+
+    private static (IReadOnlyList<T> Items, string? Message) ReadCollectionResult<T>(
+        QueryResultStatus status,
+        IReadOnlyList<T> items,
+        string emptyMessage,
+        string failedMessage) =>
+        status switch
+        {
+            QueryResultStatus.Succeeded => (items, null),
+            QueryResultStatus.Empty => ([], emptyMessage),
+            QueryResultStatus.Unauthorized => ([], "Sign in with admin access to view this data."),
+            _ => ([], failedMessage)
+        };
+
+    private static string CommandMessage(CommandResultStatus status) =>
+        status switch
+        {
+            CommandResultStatus.Invalid => "Check the event details and try again.",
+            CommandResultStatus.Failed => "The action was rejected by the server.",
+            _ => "The action could not be completed."
+        };
+
+    private static DateOnly? ParseDate(string? value) =>
+        DateOnly.TryParse(value, out var date) ? date : null;
+
+    private static TimeOnly? ParseTime(string? value) =>
+        TimeOnly.TryParse(value, out var time) ? time : null;
+
+    public ValueTask DisposeAsync()
+    {
+        Updates.CalendarUpdated -= OnCalendarUpdatedAsync;
+        return Updates.DisposeAsync();
+    }
+
+    private sealed class CreateEventModel
+    {
+        public string RawText { get; set; } = "";
+
+        public string DateText { get; set; } = "";
+
+        public string StartTimeText { get; set; } = "";
+
+        public string EndTimeText { get; set; } = "";
+    }
+}
