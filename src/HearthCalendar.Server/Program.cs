@@ -29,6 +29,8 @@ public class Program
         builder.Services.AddScoped<ICalendarUpdateNotifier, SignalRCalendarUpdateNotifier>();
         builder.Services.AddScoped<IValidator<SubmitWebEventIntentCommand>, SubmitWebEventIntentCommandValidator>();
         builder.Services.AddScoped<IValidator<EditReviewItemCommand>, EditReviewItemCommandValidator>();
+        builder.Services.AddScoped<IValidator<DeleteEventCommand>, DeleteEventCommandValidator>();
+        builder.Services.AddScoped<IValidator<RescheduleEventCommand>, RescheduleEventCommandValidator>();
         builder.Services.AddBluQube(typeof(Program).Assembly);
         builder.Services.AddBluQubeAuthorization(typeof(Program).Assembly, options =>
         {

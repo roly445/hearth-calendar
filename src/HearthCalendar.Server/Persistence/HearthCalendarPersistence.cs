@@ -33,6 +33,17 @@ public interface IHearthCalendarStore
         ReviewOutcome revisedOutcome,
         CancellationToken cancellationToken);
 
+    Task DeleteApprovedEventAsync(
+        CalendarEvent calendarEvent,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken);
+
+    Task RescheduleApprovedEventAsync(
+        CalendarEvent originalEvent,
+        CalendarEvent rescheduledEvent,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CalendarEvent>> QueryApprovedEventsAsync(
         DateOnly from,
         DateOnly to,
@@ -48,6 +59,12 @@ public sealed class StaleReviewDecisionException(ReviewDecisionId reviewDecision
     : InvalidOperationException($"Review decision {reviewDecisionId.Value} is no longer staged.")
 {
     public ReviewDecisionId ReviewDecisionId { get; } = reviewDecisionId;
+}
+
+public sealed class StaleApprovedEventMutationException(CalendarEventId calendarEventId)
+    : InvalidOperationException($"Approved event {calendarEventId.Value} no longer matches the requested mutation.")
+{
+    public CalendarEventId CalendarEventId { get; } = calendarEventId;
 }
 
 public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHearthCalendarStore
@@ -225,6 +242,57 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         await SaveChangesForReviewDecisionAsync(originalDecision.Id, cancellationToken);
     }
 
+    public async Task DeleteApprovedEventAsync(
+        CalendarEvent calendarEvent,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken)
+    {
+        var currentDocument = await session.LoadAsync<CalendarEventDocument>(
+            calendarEvent.Id.Value,
+            cancellationToken);
+        if (currentDocument is null)
+        {
+            throw new StaleApprovedEventMutationException(calendarEvent.Id);
+        }
+
+        var currentEvent = currentDocument.ToDomain();
+        if (!MatchesMutationTarget(currentEvent, calendarEvent))
+        {
+            throw new StaleApprovedEventMutationException(calendarEvent.Id);
+        }
+
+        session.Delete<CalendarEventDocument>(calendarEvent.Id.Value);
+        session.Store(auditEntry.ToDocument());
+
+        await session.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RescheduleApprovedEventAsync(
+        CalendarEvent originalEvent,
+        CalendarEvent rescheduledEvent,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken)
+    {
+        var currentDocument = await session.LoadAsync<CalendarEventDocument>(
+            originalEvent.Id.Value,
+            cancellationToken);
+        if (currentDocument is null)
+        {
+            throw new StaleApprovedEventMutationException(originalEvent.Id);
+        }
+
+        var currentEvent = currentDocument.ToDomain();
+        if (!MatchesMutationTarget(currentEvent, originalEvent) || rescheduledEvent.Id != originalEvent.Id)
+        {
+            throw new StaleApprovedEventMutationException(originalEvent.Id);
+        }
+
+        session.Store(rescheduledEvent.ToDocument());
+        session.Store(auditEntry.ToDocument());
+
+        await session.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<CalendarEvent>> QueryApprovedEventsAsync(
         DateOnly from,
         DateOnly to,
@@ -297,6 +365,19 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         exception.GetType().Name.Contains("Concurrency", StringComparison.Ordinal) ||
         exception.GetType().FullName?.Contains("Concurrency", StringComparison.Ordinal) == true;
 
+    private static bool MatchesMutationTarget(CalendarEvent currentEvent, CalendarEvent expectedEvent) =>
+        currentEvent.Id == expectedEvent.Id &&
+        currentEvent.ReviewStatus == ReviewStatus.Approved &&
+        currentEvent.Title == expectedEvent.Title &&
+        currentEvent.Time == expectedEvent.Time &&
+        currentEvent.PrimaryCalendar == expectedEvent.PrimaryCalendar &&
+        currentEvent.Category == expectedEvent.Category &&
+        currentEvent.BusyStatus == expectedEvent.BusyStatus &&
+        currentEvent.Participants.SequenceEqual(expectedEvent.Participants) &&
+        currentEvent.Source == expectedEvent.Source &&
+        currentEvent.Recurrence == expectedEvent.Recurrence &&
+        currentEvent.ResponsibleAdult == expectedEvent.ResponsibleAdult &&
+        currentEvent.ParentEventId == expectedEvent.ParentEventId;
 }
 
 public static class HearthCalendarDocumentMapping
