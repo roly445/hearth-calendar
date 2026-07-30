@@ -1,0 +1,13 @@
+{
+  Audits: [
+    {
+      Action: EventDeleted,
+      Actor: system,
+      OccurredAt: DateTimeOffset_1,
+      Summary: Approved event deleted.,
+      HasIntentLink: false,
+      HasCalendarEventLink: true,
+      HasReviewDecisionLink: false
+    }
+  ]
+}

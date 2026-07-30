@@ -1,0 +1,35 @@
+{
+  NewDate: [
+    {
+      Title: Dentist for Adult A,
+      PrimaryCalendar: AdultA,
+      Category: Personal,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-31,
+        StartTime: 10:00:00,
+        EndTime: 10:30:00,
+        IsAllDay: false
+      },
+      Participants: [
+        {
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ]
+    }
+  ],
+  Audits: [
+    {
+      Action: EventRescheduled,
+      Actor: system,
+      OccurredAt: DateTimeOffset_1,
+      Summary: Approved event rescheduled.,
+      HasIntentLink: false,
+      HasCalendarEventLink: true,
+      HasReviewDecisionLink: false
+    }
+  ]
+}

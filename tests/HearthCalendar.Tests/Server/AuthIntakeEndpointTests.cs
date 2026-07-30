@@ -323,6 +323,19 @@ public sealed class AuthIntakeEndpointTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task DeleteApprovedEventAsync(
+            CalendarEvent calendarEvent,
+            AuditEntry auditEntry,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task RescheduleApprovedEventAsync(
+            CalendarEvent originalEvent,
+            CalendarEvent rescheduledEvent,
+            AuditEntry auditEntry,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<CalendarEvent>> QueryApprovedEventsAsync(
             DateOnly from,
             DateOnly to,

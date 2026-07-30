@@ -265,9 +265,12 @@ public enum DecisionReasonCode
 {
     DeterministicMatch,
     AmbiguousIntent,
+    AmbiguousEventMatch,
     MissingDate,
     PastEvent,
     ClashDetected,
+    DuplicateEventMatch,
+    ExactEventMatch,
     AiProviderUnavailable,
     AiSuggestionApplied,
     AiSuggestionIgnored
@@ -285,5 +288,9 @@ public enum AuditAction
     EventApproved,
     EventStaged,
     EventRejected,
-    IntakeIntentSubmitted
+    IntakeIntentSubmitted,
+    EventDeleted,
+    EventDeleteRejected,
+    EventRescheduled,
+    EventRescheduleRejected
 }

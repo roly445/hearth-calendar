@@ -296,6 +296,239 @@ public sealed class EditReviewItemCommandHandler(
     }
 }
 
+public sealed class DeleteEventCommandValidator : AbstractValidator<DeleteEventCommand>
+{
+    public DeleteEventCommandValidator()
+    {
+        RuleFor(command => command.RawText)
+            .NotEmpty()
+            .MaximumLength(500);
+    }
+}
+
+public sealed class DeleteEventCommandHandler(
+    IHearthCalendarStore store,
+    ICalendarUpdateNotifier notifier,
+    IEnumerable<IValidator<DeleteEventCommand>> validators,
+    ILogger<DeleteEventCommandHandler> logger)
+    : CommandHandler<DeleteEventCommand, ReviewActionResult>(validators, logger)
+{
+    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+        DeleteEventCommand request,
+        CancellationToken cancellationToken)
+    {
+        var candidates = await store.QueryApprovedEventsAsync(
+            request.Date,
+            request.Date,
+            VirtualCalendar.Combined,
+            cancellationToken);
+        var plan = EventMutationPolicy.PlanDelete(
+            request.RawText.Trim(),
+            request.Date,
+            request.StartTime,
+            request.EndTime,
+            candidates);
+
+        if (plan.Status != MutationPlanStatus.Approved || plan.MatchedEvent is null)
+        {
+            var nonApplied = await CalendarUiMutationSupport.StoreNonAppliedMutationAsync(
+                store,
+                notifier,
+                request.RawText.Trim(),
+                request.SourceMode,
+                plan.Status,
+                plan.Reasons,
+                [],
+                null,
+                AuditAction.EventDeleteRejected,
+                cancellationToken);
+
+            return nonApplied ?? CommandResult<ReviewActionResult>.Failed(
+                new BluQubeErrorData(
+                    "DELETE_NOT_EXACT_MATCH",
+                    "Delete was not applied because the request did not exactly match one approved event."));
+        }
+
+        var audit = CalendarUiAudits.ForDeletedEvent(plan.MatchedEvent);
+        try
+        {
+            await store.DeleteApprovedEventAsync(plan.MatchedEvent, audit, cancellationToken);
+        }
+        catch (StaleApprovedEventMutationException)
+        {
+            await store.StoreAuditEntryAsync(
+                CalendarUiAudits.ForEventMutationRejection(
+                    AuditAction.EventDeleteRejected,
+                    request.RawText.Trim(),
+                    [new DecisionReason(DecisionReasonCode.AmbiguousEventMatch, "The approved event changed before delete could be applied.")]),
+                cancellationToken);
+
+            return CommandResult<ReviewActionResult>.Failed(
+                new BluQubeErrorData("DELETE_STALE_MATCH", "Delete was not applied because the approved event changed before it could be removed."));
+        }
+
+        await notifier.PublishAsync(
+            [new(CalendarUiNotifications.CalendarEventsChanged, plan.MatchedEvent.Id.Value, DateTimeOffset.UtcNow)],
+            cancellationToken);
+
+        return CommandResult<ReviewActionResult>.Succeeded(
+            new ReviewActionResult(Guid.Empty, "Deleted", "Event deleted.", plan.MatchedEvent.Id.Value));
+    }
+}
+
+public sealed class RescheduleEventCommandValidator : AbstractValidator<RescheduleEventCommand>
+{
+    public RescheduleEventCommandValidator()
+    {
+        RuleFor(command => command.RawText)
+            .NotEmpty()
+            .MaximumLength(500);
+    }
+}
+
+public sealed class RescheduleEventCommandHandler(
+    IHearthCalendarStore store,
+    ICalendarUpdateNotifier notifier,
+    IEnumerable<IValidator<RescheduleEventCommand>> validators,
+    ILogger<RescheduleEventCommandHandler> logger)
+    : CommandHandler<RescheduleEventCommand, ReviewActionResult>(validators, logger)
+{
+    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+        RescheduleEventCommand request,
+        CancellationToken cancellationToken)
+    {
+        var currentCandidates = await store.QueryApprovedEventsAsync(
+            request.CurrentDate,
+            request.CurrentDate,
+            VirtualCalendar.Combined,
+            cancellationToken);
+        var existingEvents = await store.QueryApprovedEventsAsync(
+            Min(request.CurrentDate, request.NewDate),
+            Max(request.CurrentDate, request.NewDate),
+            VirtualCalendar.Combined,
+            cancellationToken);
+        var plan = EventMutationPolicy.PlanReschedule(
+            request.RawText.Trim(),
+            request.CurrentDate,
+            request.CurrentStartTime,
+            request.CurrentEndTime,
+            request.NewDate,
+            request.NewStartTime,
+            request.NewEndTime,
+            currentCandidates,
+            existingEvents);
+
+        if (plan.Status != MutationPlanStatus.Approved || plan.MatchedEvent is null || plan.RescheduledEvent is null)
+        {
+            var nonApplied = await CalendarUiMutationSupport.StoreNonAppliedMutationAsync(
+                store,
+                notifier,
+                request.RawText.Trim(),
+                request.SourceMode,
+                plan.Status,
+                plan.Reasons,
+                plan.Clashes,
+                plan.RescheduledEvent,
+                AuditAction.EventRescheduleRejected,
+                cancellationToken);
+
+            return nonApplied ?? CommandResult<ReviewActionResult>.Failed(
+                new BluQubeErrorData(
+                    "RESCHEDULE_NOT_CONFIDENT_MATCH",
+                    "Reschedule was not applied because the request did not confidently match one safe approved event."));
+        }
+
+        var audit = CalendarUiAudits.ForRescheduledEvent(plan.MatchedEvent, plan.RescheduledEvent);
+        try
+        {
+            await store.RescheduleApprovedEventAsync(
+                plan.MatchedEvent,
+                plan.RescheduledEvent,
+                audit,
+                cancellationToken);
+        }
+        catch (StaleApprovedEventMutationException)
+        {
+            await store.StoreAuditEntryAsync(
+                CalendarUiAudits.ForEventMutationRejection(
+                    AuditAction.EventRescheduleRejected,
+                    request.RawText.Trim(),
+                    [new DecisionReason(DecisionReasonCode.AmbiguousEventMatch, "The approved event changed before reschedule could be applied.")]),
+                cancellationToken);
+
+            return CommandResult<ReviewActionResult>.Failed(
+                new BluQubeErrorData("RESCHEDULE_STALE_MATCH", "Reschedule was not applied because the approved event changed before it could be updated."));
+        }
+
+        await notifier.PublishAsync(
+            [new(CalendarUiNotifications.CalendarEventsChanged, plan.RescheduledEvent.Id.Value, DateTimeOffset.UtcNow)],
+            cancellationToken);
+
+        return CommandResult<ReviewActionResult>.Succeeded(
+            new ReviewActionResult(Guid.Empty, "Rescheduled", "Event rescheduled.", plan.RescheduledEvent.Id.Value));
+    }
+
+    private static DateOnly Min(DateOnly left, DateOnly right) =>
+        left <= right ? left : right;
+
+    private static DateOnly Max(DateOnly left, DateOnly right) =>
+        left >= right ? left : right;
+
+}
+
+public static class CalendarUiMutationSupport
+{
+    public static async Task<CommandResult<ReviewActionResult>?> StoreNonAppliedMutationAsync(
+        IHearthCalendarStore store,
+        ICalendarUpdateNotifier notifier,
+        string rawText,
+        ReviewSourceMode sourceMode,
+        MutationPlanStatus status,
+        IReadOnlyList<DecisionReason> reasons,
+        IReadOnlyList<Clash> clashes,
+        CalendarEvent? candidate,
+        AuditAction rejectedAction,
+        CancellationToken cancellationToken)
+    {
+        var submittedAt = DateTimeOffset.UtcNow;
+        var intent = new EventIntent(
+            EventIntentId.New(),
+            CalendarSource.Web,
+            sourceMode,
+            rawText,
+            null,
+            submittedAt,
+            ActorRef.System);
+
+        if (status == MutationPlanStatus.Staged && sourceMode == ReviewSourceMode.Passive)
+        {
+            var decision = new ReviewDecision(
+                ReviewDecisionId.New(),
+                intent.Id,
+                ReviewStatus.Staged,
+                DecisionMode.Automatic,
+                reasons,
+                clashes,
+                candidate is null ? null : candidate with { ReviewStatus = ReviewStatus.Staged },
+                submittedAt,
+                ActorRef.System);
+            var outcome = new ReviewOutcome(decision, CalendarUiAudits.ForDecision(decision));
+
+            await store.StoreReviewOutcomeAsync(intent, outcome, cancellationToken);
+            await notifier.PublishAsync(CalendarUiNotifications.For(decision), cancellationToken);
+
+            return CommandResult<ReviewActionResult>.Succeeded(CalendarUiMapping.ToReviewActionResult(decision));
+        }
+
+        await store.StoreIntentWithAuditAsync(
+            intent,
+            CalendarUiAudits.ForEventMutationRejection(rejectedAction, rawText, reasons, intent.Id),
+            cancellationToken);
+
+        return null;
+    }
+}
+
 public abstract class AdminBluQubeAuthorizer<TRequest>(IHttpContextAccessor accessor)
     : IBluQubeAuthorizer<TRequest>
 {
@@ -328,6 +561,12 @@ public sealed class RejectReviewItemCommandAuthorizer(IHttpContextAccessor acces
 
 public sealed class EditReviewItemCommandAuthorizer(IHttpContextAccessor accessor)
     : AdminBluQubeAuthorizer<EditReviewItemCommand>(accessor);
+
+public sealed class DeleteEventCommandAuthorizer(IHttpContextAccessor accessor)
+    : AdminBluQubeAuthorizer<DeleteEventCommand>(accessor);
+
+public sealed class RescheduleEventCommandAuthorizer(IHttpContextAccessor accessor)
+    : AdminBluQubeAuthorizer<RescheduleEventCommand>(accessor);
 
 public static class CalendarUiMapping
 {
@@ -411,6 +650,53 @@ public static class CalendarUiAudits
             {
                 ["mode"] = decision.Mode.ToString(),
                 ["status"] = decision.Status.ToString()
+            });
+
+    public static AuditEntry ForDeletedEvent(CalendarEvent calendarEvent) =>
+        new(
+            AuditEntryId.New(),
+            AuditAction.EventDeleted,
+            ActorRef.System,
+            DateTimeOffset.UtcNow,
+            "Approved event deleted.",
+            CalendarEventId: calendarEvent.Id,
+            Metadata: new Dictionary<string, string>
+            {
+                ["title"] = calendarEvent.Title,
+                ["date"] = calendarEvent.Time.Date.ToString("O")
+            });
+
+    public static AuditEntry ForRescheduledEvent(CalendarEvent originalEvent, CalendarEvent rescheduledEvent) =>
+        new(
+            AuditEntryId.New(),
+            AuditAction.EventRescheduled,
+            ActorRef.System,
+            DateTimeOffset.UtcNow,
+            "Approved event rescheduled.",
+            CalendarEventId: rescheduledEvent.Id,
+            Metadata: new Dictionary<string, string>
+            {
+                ["title"] = rescheduledEvent.Title,
+                ["fromDate"] = originalEvent.Time.Date.ToString("O"),
+                ["toDate"] = rescheduledEvent.Time.Date.ToString("O")
+            });
+
+    public static AuditEntry ForEventMutationRejection(
+        AuditAction action,
+        string rawText,
+        IReadOnlyList<DecisionReason> reasons,
+        EventIntentId? intentId = null) =>
+        new(
+            AuditEntryId.New(),
+            action,
+            ActorRef.System,
+            DateTimeOffset.UtcNow,
+            "Event mutation rejected.",
+            IntentId: intentId,
+            Metadata: new Dictionary<string, string>
+            {
+                ["rawText"] = rawText,
+                ["reasons"] = string.Join(",", reasons.Select(reason => reason.Code.ToString()))
             });
 }
 

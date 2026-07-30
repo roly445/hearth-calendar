@@ -39,6 +39,25 @@ public sealed record EditReviewItemCommand(
     TimeOnly? StartTime = null,
     TimeOnly? EndTime = null) : ICommand<ReviewActionResult>;
 
+[BluQubeCommand(Path = "commands/events/delete")]
+public sealed record DeleteEventCommand(
+    string RawText,
+    DateOnly Date,
+    TimeOnly? StartTime = null,
+    TimeOnly? EndTime = null,
+    ReviewSourceMode SourceMode = ReviewSourceMode.Interactive) : ICommand<ReviewActionResult>;
+
+[BluQubeCommand(Path = "commands/events/reschedule")]
+public sealed record RescheduleEventCommand(
+    string RawText,
+    DateOnly CurrentDate,
+    DateOnly NewDate,
+    TimeOnly? CurrentStartTime = null,
+    TimeOnly? CurrentEndTime = null,
+    TimeOnly? NewStartTime = null,
+    TimeOnly? NewEndTime = null,
+    ReviewSourceMode SourceMode = ReviewSourceMode.Interactive) : ICommand<ReviewActionResult>;
+
 public sealed record ReviewActionResult(
     Guid ReviewDecisionId,
     string Status,
