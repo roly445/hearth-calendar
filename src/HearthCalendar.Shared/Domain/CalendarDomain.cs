@@ -284,5 +284,6 @@ public enum AuditAction
     IntentReviewed,
     EventApproved,
     EventStaged,
-    EventRejected
+    EventRejected,
+    IntakeIntentSubmitted
 }

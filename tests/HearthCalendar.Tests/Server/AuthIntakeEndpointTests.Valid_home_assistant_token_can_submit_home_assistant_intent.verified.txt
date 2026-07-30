@@ -1,0 +1,32 @@
+{
+  StatusCode: Accepted,
+  StoredIntents: [
+    {
+      HasId: true,
+      Source: HomeAssistant,
+      SourceMode: Passive,
+      RawText: Adult A appointment,
+      Payload: {
+        Date: 2026-08-02
+      },
+      HasSubmittedAt: true,
+      SubmittedBy: home-assistant
+    }
+  ],
+  Audits: [
+    {
+      Action: IntakeIntentSubmitted,
+      Actor: home-assistant,
+      HasOccurredAt: true,
+      Summary: Intake intent submitted.,
+      HasIntentLink: true,
+      Metadata: {
+        mode: Passive,
+        source: HomeAssistant,
+        tokenKind: client
+      },
+      ContainsRawWriteToken: false,
+      ContainsRawFeedToken: false
+    }
+  ]
+}

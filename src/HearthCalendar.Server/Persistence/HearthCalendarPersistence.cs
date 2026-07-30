@@ -7,9 +7,16 @@ public interface IHearthCalendarStore
 {
     Task StoreIntentAsync(EventIntent intent, CancellationToken cancellationToken);
 
+    Task StoreIntentWithAuditAsync(
+        EventIntent intent,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken);
+
     Task<EventIntent?> LoadIntentAsync(EventIntentId id, CancellationToken cancellationToken);
 
     Task StoreReviewOutcomeAsync(EventIntent intent, ReviewOutcome outcome, CancellationToken cancellationToken);
+
+    Task StoreAuditEntryAsync(AuditEntry auditEntry, CancellationToken cancellationToken);
 
     Task<ReviewOutcome?> LoadReviewOutcomeAsync(ReviewDecisionId id, CancellationToken cancellationToken);
 
@@ -29,6 +36,17 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
     public async Task StoreIntentAsync(EventIntent intent, CancellationToken cancellationToken)
     {
         session.Store(intent.ToDocument());
+
+        await session.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task StoreIntentWithAuditAsync(
+        EventIntent intent,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken)
+    {
+        session.Store(intent.ToDocument());
+        session.Store(auditEntry.ToDocument());
 
         await session.SaveChangesAsync(cancellationToken);
     }
@@ -59,6 +77,13 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
 
         session.Store(outcome.Decision.ToDocument());
         session.Store(outcome.AuditEntry.ToDocument());
+
+        await session.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task StoreAuditEntryAsync(AuditEntry auditEntry, CancellationToken cancellationToken)
+    {
+        session.Store(auditEntry.ToDocument());
 
         await session.SaveChangesAsync(cancellationToken);
     }
