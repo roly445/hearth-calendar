@@ -4,6 +4,7 @@ using BluQube.Commands;
 using BluQube.Queries;
 using FluentValidation;
 using HearthCalendar.Server.Auth;
+using HearthCalendar.Server.Feeds;
 using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
@@ -81,6 +82,7 @@ public class Program
         app.MapGet("/api/admin/session", () => Results.Ok(new AdminSessionResponse("authenticated")))
             .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
         app.MapIntakeEndpoints();
+        app.MapFeedEndpoints();
         app.MapHub<CalendarUpdatesHub>("/hubs/calendar-updates");
         app.AddBluQubeApi();
 
