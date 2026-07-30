@@ -1,0 +1,80 @@
+﻿{
+  Decision: {
+    Status: Staged,
+    Mode: AssistedByAi,
+    HasAiSuggestionLink: true,
+    Event: {
+      Title: Dentist for Adult A,
+      PrimaryCalendar: AdultA,
+      Category: Personal,
+      BusyStatus: Busy,
+      ReviewStatus: Staged,
+      Time: {
+        Date: 2026-07-29,
+        StartTime: 13:00:00,
+        EndTime: 13:30:00,
+        IsAllDay: false
+      },
+      Participants: [
+        {
+          Person: Adult A,
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ],
+      HasParentEvent: false
+    },
+    Reasons: [
+      {
+        Code: ClashDetected,
+        Message: The event overlaps an existing busy event.
+      },
+      {
+        Code: AiSuggestionIgnored,
+        Message: AI suggestion did not override deterministic safety rules.
+      }
+    ],
+    Clashes: [
+      {
+        Severity: Warning,
+        Summary: Conflicts with Family BBQ.,
+        AffectedPeople: [
+          {
+            DisplayName: Adult A,
+            PersonId: adult-a
+          }
+        ]
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  },
+  AiSuggestion: {
+    Provider: stub,
+    Model: stub-model,
+    SuggestedTitle: Dentist for Adult A,
+    SuggestedCalendar: AdultA,
+    SuggestedParticipants: [
+      adult-a
+    ],
+    Confidence: 0.98,
+    Reasons: [
+      Matched placeholder people and a simple calendar type.
+    ],
+    CreatedAt: DateTimeOffset_2
+  },
+  AuditEntry: {
+    Action: EventStaged,
+    Actor: system,
+    OccurredAt: DateTimeOffset_1,
+    Summary: Intent Staged.,
+    HasIntentLink: true,
+    HasCalendarEventLink: true,
+    HasReviewDecisionLink: true,
+    Metadata: {
+      mode: Passive,
+      source: Test
+    }
+  }
+}

@@ -1,0 +1,46 @@
+﻿{
+  Decision: {
+    Status: Staged,
+    Mode: AssistedByAi,
+    HasAiSuggestionLink: true,
+    Reasons: [
+      {
+        Code: AmbiguousIntent,
+        Message: The intent does not identify enough calendar details.
+      },
+      {
+        Code: AiSuggestionIgnored,
+        Message: AI suggestion confidence or shape was not safe to apply automatically.
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  },
+  AiSuggestion: {
+    Provider: stub,
+    Model: stub-model,
+    SuggestedTitle: Dentist,
+    SuggestedCalendar: AdultA,
+    SuggestedParticipants: [
+      adult-b
+    ],
+    Confidence: 0.95,
+    Reasons: [
+      Matched placeholder people and a simple calendar type.
+    ],
+    CreatedAt: DateTimeOffset_2
+  },
+  AuditEntry: {
+    Action: EventStaged,
+    Actor: system,
+    OccurredAt: DateTimeOffset_1,
+    Summary: Intent Staged.,
+    HasIntentLink: true,
+    HasCalendarEventLink: false,
+    HasReviewDecisionLink: true,
+    Metadata: {
+      mode: Passive,
+      source: Test
+    }
+  }
+}

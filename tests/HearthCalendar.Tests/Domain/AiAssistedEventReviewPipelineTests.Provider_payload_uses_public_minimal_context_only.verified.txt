@@ -1,0 +1,14 @@
+﻿{
+  Request: {
+    HasIntentId: true,
+    Source: Test,
+    SourceMode: Passive,
+    RawText: dentist,
+    Payload: {
+      Date: 2026-07-29,
+      StartTime: 09:00:00,
+      EndTime: 09:30:00
+    },
+    SubmittedAt: DateTimeOffset_1
+  }
+}

@@ -1,0 +1,62 @@
+﻿{
+  Decision: {
+    Status: Approved,
+    Mode: AssistedByAi,
+    HasAiSuggestionLink: true,
+    Event: {
+      Title: Dentist for Adult A,
+      PrimaryCalendar: AdultA,
+      Category: Personal,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-29,
+        IsAllDay: true
+      },
+      Participants: [
+        {
+          Person: Adult A,
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ],
+      HasParentEvent: false
+    },
+    Reasons: [
+      {
+        Code: AiSuggestionApplied,
+        Message: AI suggestion resolved an allowed ambiguous intent.
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  },
+  AiSuggestion: {
+    Provider: stub,
+    Model: stub-model,
+    SuggestedTitle: Dentist for Adult A,
+    SuggestedCalendar: AdultA,
+    SuggestedParticipants: [
+      adult-a
+    ],
+    Confidence: 0.92,
+    Reasons: [
+      Matched placeholder people and a simple calendar type.
+    ],
+    CreatedAt: DateTimeOffset_2
+  },
+  AuditEntry: {
+    Action: EventApproved,
+    Actor: system,
+    OccurredAt: DateTimeOffset_1,
+    Summary: Intent Approved.,
+    HasIntentLink: true,
+    HasCalendarEventLink: true,
+    HasReviewDecisionLink: true,
+    Metadata: {
+      mode: Passive,
+      source: Test
+    }
+  }
+}

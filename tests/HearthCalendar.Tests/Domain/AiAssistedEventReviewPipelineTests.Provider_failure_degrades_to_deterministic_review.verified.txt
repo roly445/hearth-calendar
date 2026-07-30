@@ -1,0 +1,32 @@
+﻿{
+  Decision: {
+    Status: Staged,
+    Mode: Automatic,
+    HasAiSuggestionLink: false,
+    Reasons: [
+      {
+        Code: AmbiguousIntent,
+        Message: The intent does not identify enough calendar details.
+      },
+      {
+        Code: AiProviderUnavailable,
+        Message: AI review provider failed; deterministic review was used.
+      }
+    ],
+    DecidedAt: DateTimeOffset_1,
+    DecidedBy: system
+  },
+  AuditEntry: {
+    Action: EventStaged,
+    Actor: system,
+    OccurredAt: DateTimeOffset_1,
+    Summary: Intent Staged.,
+    HasIntentLink: true,
+    HasCalendarEventLink: false,
+    HasReviewDecisionLink: true,
+    Metadata: {
+      mode: Passive,
+      source: Test
+    }
+  }
+}
