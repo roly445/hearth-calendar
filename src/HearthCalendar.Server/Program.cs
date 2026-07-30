@@ -1,9 +1,19 @@
+using BluQube.Attributes;
+using BluQube.Authorization;
+using BluQube.Commands;
+using BluQube.Queries;
+using FluentValidation;
 using HearthCalendar.Server.Auth;
+using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
+using HearthCalendar.Server.SignalR;
+using HearthCalendar.Shared.Contracts.Ui;
+using Microsoft.AspNetCore.Http.Json;
 
 namespace HearthCalendar.Server;
 
+[BluQubeResponder]
 public class Program
 {
     private const string ConfiguredOriginsPolicy = "ConfiguredOrigins";
@@ -14,6 +24,22 @@ public class Program
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
         builder.Services.AddHearthCalendarPersistence(builder.Configuration);
         builder.Services.AddHearthCalendarAuth(builder.Configuration);
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSignalR();
+        builder.Services.AddScoped<ICalendarUpdateNotifier, SignalRCalendarUpdateNotifier>();
+        builder.Services.AddScoped<IValidator<SubmitWebEventIntentCommand>, SubmitWebEventIntentCommandValidator>();
+        builder.Services.AddScoped<IValidator<EditReviewItemCommand>, EditReviewItemCommandValidator>();
+        builder.Services.AddBluQube(typeof(Program).Assembly);
+        builder.Services.AddBluQubeAuthorization(typeof(Program).Assembly, options =>
+        {
+            options.RequireAuthorizationByDefault = true;
+        });
+        builder.Services.AddScoped<ICommandRunner, CommandRunner>();
+        builder.Services.AddScoped<IQueryRunner, QueryRunner>();
+        builder.Services.Configure<JsonOptions>(options =>
+        {
+            options.AddBluQubeJsonConverters();
+        });
 
         builder.Services.AddCors(options =>
         {
@@ -53,6 +79,8 @@ public class Program
         app.MapGet("/api/admin/session", () => Results.Ok(new AdminSessionResponse("authenticated")))
             .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
         app.MapIntakeEndpoints();
+        app.MapHub<CalendarUpdatesHub>("/hubs/calendar-updates");
+        app.AddBluQubeApi();
 
         app.MapFallbackToFile("index.html")
             .AllowAnonymous();

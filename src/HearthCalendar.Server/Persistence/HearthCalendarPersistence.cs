@@ -20,6 +20,19 @@ public interface IHearthCalendarStore
 
     Task<ReviewOutcome?> LoadReviewOutcomeAsync(ReviewDecisionId id, CancellationToken cancellationToken);
 
+    Task<ReviewDecision?> LoadReviewDecisionAsync(ReviewDecisionId id, CancellationToken cancellationToken);
+
+    Task StoreReviewDecisionAsync(
+        ReviewDecision decision,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken);
+
+    Task StoreEditedReviewOutcomeAsync(
+        ReviewDecision originalDecision,
+        EventIntent revisedIntent,
+        ReviewOutcome revisedOutcome,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<CalendarEvent>> QueryApprovedEventsAsync(
         DateOnly from,
         DateOnly to,
@@ -29,6 +42,12 @@ public interface IHearthCalendarStore
     Task<IReadOnlyList<ReviewDecision>> QueryReviewQueueAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<AuditEntry>> QueryAuditEntriesAsync(CancellationToken cancellationToken);
+}
+
+public sealed class StaleReviewDecisionException(ReviewDecisionId reviewDecisionId)
+    : InvalidOperationException($"Review decision {reviewDecisionId.Value} is no longer staged.")
+{
+    public ReviewDecisionId ReviewDecisionId { get; } = reviewDecisionId;
 }
 
 public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHearthCalendarStore
@@ -119,6 +138,93 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
             suggestionDocument?.ToDomain());
     }
 
+    public async Task<ReviewDecision?> LoadReviewDecisionAsync(
+        ReviewDecisionId id,
+        CancellationToken cancellationToken)
+    {
+        var decisionDocument = await session.LoadAsync<ReviewDecisionDocument>(id.Value, cancellationToken);
+        if (decisionDocument is null)
+        {
+            return null;
+        }
+
+        var eventDocument = decisionDocument.CalendarEventId is null
+            ? null
+            : await session.LoadAsync<CalendarEventDocument>(decisionDocument.CalendarEventId.Value, cancellationToken);
+
+        return decisionDocument.ToDomain(eventDocument?.ToDomain());
+    }
+
+    public async Task StoreReviewDecisionAsync(
+        ReviewDecision decision,
+        AuditEntry auditEntry,
+        CancellationToken cancellationToken)
+    {
+        var currentDecision = await session.LoadAsync<ReviewDecisionDocument>(
+            decision.Id.Value,
+            cancellationToken);
+        if (currentDecision?.Status != nameof(ReviewStatus.Staged))
+        {
+            throw new StaleReviewDecisionException(decision.Id);
+        }
+
+        if (decision.Event is not null)
+        {
+            session.Store(decision.Event.ToDocument());
+        }
+
+        session.Store(decision.ToDocument());
+        session.Store(auditEntry.ToDocument());
+
+        await SaveChangesForReviewDecisionAsync(decision.Id, cancellationToken);
+    }
+
+    public async Task StoreEditedReviewOutcomeAsync(
+        ReviewDecision originalDecision,
+        EventIntent revisedIntent,
+        ReviewOutcome revisedOutcome,
+        CancellationToken cancellationToken)
+    {
+        var currentDecision = await session.LoadAsync<ReviewDecisionDocument>(
+            originalDecision.Id.Value,
+            cancellationToken);
+        if (currentDecision?.Status != nameof(ReviewStatus.Staged))
+        {
+            throw new StaleReviewDecisionException(originalDecision.Id);
+        }
+
+        var rejectedOriginal = originalDecision with
+        {
+            Status = ReviewStatus.Rejected,
+            Event = originalDecision.Event is null ? null : originalDecision.Event with { ReviewStatus = ReviewStatus.Rejected },
+            DecidedAt = revisedIntent.SubmittedAt,
+            DecidedBy = ActorRef.System
+        };
+
+        if (rejectedOriginal.Event is not null)
+        {
+            session.Store(rejectedOriginal.Event.ToDocument());
+        }
+
+        session.Store(rejectedOriginal.ToDocument());
+        session.Store(revisedIntent.ToDocument());
+
+        if (revisedOutcome.AiSuggestion is not null)
+        {
+            session.Store(revisedOutcome.AiSuggestion.ToDocument(revisedIntent.Id));
+        }
+
+        if (revisedOutcome.Decision.Event is not null)
+        {
+            session.Store(revisedOutcome.Decision.Event.ToDocument());
+        }
+
+        session.Store(revisedOutcome.Decision.ToDocument());
+        session.Store(revisedOutcome.AuditEntry.ToDocument());
+
+        await SaveChangesForReviewDecisionAsync(originalDecision.Id, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<CalendarEvent>> QueryApprovedEventsAsync(
         DateOnly from,
         DateOnly to,
@@ -172,6 +278,24 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
 
         return documents.Select(document => document.ToDomain()).ToArray();
     }
+
+    private async Task SaveChangesForReviewDecisionAsync(
+        ReviewDecisionId reviewDecisionId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await session.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsConcurrencyException(exception))
+        {
+            throw new StaleReviewDecisionException(reviewDecisionId);
+        }
+    }
+
+    private static bool IsConcurrencyException(Exception exception) =>
+        exception.GetType().Name.Contains("Concurrency", StringComparison.Ordinal) ||
+        exception.GetType().FullName?.Contains("Concurrency", StringComparison.Ordinal) == true;
 
 }
 

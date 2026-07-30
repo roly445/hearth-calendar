@@ -29,7 +29,9 @@ public static class ServiceCollectionExtensions
             storeOptions.AutoCreateSchemaObjects = AutoCreate.CreateOrUpdate;
             storeOptions.Schema.For<EventIntentDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<CalendarEventDocument>().Identity(document => document.Id);
-            storeOptions.Schema.For<ReviewDecisionDocument>().Identity(document => document.Id);
+            storeOptions.Schema.For<ReviewDecisionDocument>()
+                .Identity(document => document.Id)
+                .UseOptimisticConcurrency(true);
             storeOptions.Schema.For<AiReviewSuggestionDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<AuditEntryDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<ClientCredentialDocument>().Identity(document => document.Id);
