@@ -15,14 +15,17 @@ public static class HearthCalendarAuth
     public const string AdminPolicy = "Admin";
     public const string IntakeWritePolicy = "IntakeWrite";
     public const string FeedReadPolicy = "FeedRead";
+    public const string CalDavWritePolicy = "CalDavWrite";
     public const string ScopeClaim = "scope";
     public const string TokenKindClaim = "token_kind";
     public const string AllowedCalendarClaim = "allowed_calendar";
     public const string ClientTokenKind = "client";
     public const string FeedTokenKind = "feed";
+    public const string CalDavTokenKind = "caldav";
     public const string AdminWebScope = "admin:web";
     public const string IntakeWriteScope = "intake:write";
     public const string FeedReadScope = "feed:read";
+    public const string CalDavWriteScope = "caldav:write";
 
     public static IServiceCollection AddHearthCalendarAuth(
         this IServiceCollection services,
@@ -76,6 +79,13 @@ public static class HearthCalendarAuth
                 policy.RequireAuthenticatedUser();
                 policy.RequireClaim(TokenKindClaim, FeedTokenKind);
                 policy.RequireClaim(ScopeClaim, FeedReadScope);
+            })
+            .AddPolicy(CalDavWritePolicy, policy =>
+            {
+                policy.AddAuthenticationSchemes(TokenScheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim(TokenKindClaim, CalDavTokenKind);
+                policy.RequireClaim(ScopeClaim, CalDavWriteScope);
             });
 
         return services;
@@ -87,6 +97,8 @@ public sealed record HearthCalendarAuthOptions
     public IReadOnlyList<ClientTokenOptions> ClientTokens { get; init; } = [];
 
     public IReadOnlyList<FeedTokenOptions> FeedTokens { get; init; } = [];
+
+    public IReadOnlyList<CalDavCredentialOptions> CalDavCredentials { get; init; } = [];
 }
 
 public sealed record ClientTokenOptions
@@ -105,6 +117,17 @@ public sealed record FeedTokenOptions
     public required string TokenHash { get; init; }
 
     public IReadOnlyList<string> AllowedCalendars { get; init; } = [];
+
+    public IReadOnlyList<string> Scopes { get; init; } = [];
+}
+
+public sealed record CalDavCredentialOptions
+{
+    public required string Name { get; init; }
+
+    public required string SecretHash { get; init; }
+
+    public IReadOnlyList<string> WritableCalendars { get; init; } = [];
 
     public IReadOnlyList<string> Scopes { get; init; } = [];
 }
@@ -146,14 +169,15 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        var token = ReadBearerToken();
-        if (token is null)
+        var credential = ReadCredential();
+        if (credential is null)
         {
             return Task.FromResult(AuthenticateResult.NoResult());
         }
 
         var client = authOptions.Value.ClientTokens.FirstOrDefault(
-            candidate => HearthCalendarSecretHasher.Matches(token, candidate.SecretHash));
+            candidate => credential.Kind == SubmittedCredentialKind.Bearer &&
+                HearthCalendarSecretHasher.Matches(credential.Secret, candidate.SecretHash));
         if (client is not null)
         {
             return Task.FromResult(Success(HearthCalendarTokenPrincipalFactory.Create(
@@ -164,7 +188,8 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
         }
 
         var feed = authOptions.Value.FeedTokens.FirstOrDefault(
-            candidate => HearthCalendarSecretHasher.Matches(token, candidate.TokenHash));
+            candidate => credential.Kind == SubmittedCredentialKind.Bearer &&
+                HearthCalendarSecretHasher.Matches(credential.Secret, candidate.TokenHash));
         if (feed is not null)
         {
             return Task.FromResult(Success(HearthCalendarTokenPrincipalFactory.Create(
@@ -174,26 +199,78 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
                 feed.AllowedCalendars)));
         }
 
+        var calDavCredential = authOptions.Value.CalDavCredentials.FirstOrDefault(
+            candidate => credential.Kind == SubmittedCredentialKind.Basic &&
+                string.Equals(candidate.Name, credential.Name, StringComparison.Ordinal) &&
+                HearthCalendarSecretHasher.Matches(credential.Secret, candidate.SecretHash));
+        if (calDavCredential is not null)
+        {
+            return Task.FromResult(Success(HearthCalendarTokenPrincipalFactory.Create(
+                calDavCredential.Name,
+                HearthCalendarAuth.CalDavTokenKind,
+                calDavCredential.Scopes,
+                calDavCredential.WritableCalendars)));
+        }
+
         return Task.FromResult(AuthenticateResult.Fail("Invalid token."));
     }
 
-    private string? ReadBearerToken()
+    private SubmittedCredential? ReadCredential()
     {
         var authorization = Request.Headers.Authorization.ToString();
         if (string.IsNullOrWhiteSpace(authorization))
         {
-            return ReadFeedQueryToken();
+            var feedQueryToken = ReadFeedQueryToken();
+
+            return feedQueryToken is null
+                ? null
+                : new SubmittedCredential(SubmittedCredentialKind.Bearer, null, feedQueryToken);
         }
 
         const string bearerPrefix = "Bearer ";
         if (!authorization.StartsWith(bearerPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            return null;
+            return ReadBasicCredential(authorization);
         }
 
         var token = authorization[bearerPrefix.Length..].Trim();
 
-        return string.IsNullOrWhiteSpace(token) ? null : token;
+        return string.IsNullOrWhiteSpace(token)
+            ? null
+            : new SubmittedCredential(SubmittedCredentialKind.Bearer, null, token);
+    }
+
+    private static SubmittedCredential? ReadBasicCredential(string authorization)
+    {
+        const string basicPrefix = "Basic ";
+        if (!authorization.StartsWith(basicPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var encoded = authorization[basicPrefix.Length..].Trim();
+        string decoded;
+        try
+        {
+            decoded = Encoding.UTF8.GetString(Convert.FromBase64String(encoded));
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
+
+        var separator = decoded.IndexOf(':', StringComparison.Ordinal);
+        if (separator <= 0)
+        {
+            return null;
+        }
+
+        var name = decoded[..separator];
+        var secret = decoded[(separator + 1)..];
+
+        return string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(secret)
+            ? null
+            : new SubmittedCredential(SubmittedCredentialKind.Basic, name, secret);
     }
 
     private string? ReadFeedQueryToken()
@@ -206,6 +283,14 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
         var token = Request.Query["token"].ToString();
 
         return string.IsNullOrWhiteSpace(token) ? null : token;
+    }
+
+    private sealed record SubmittedCredential(SubmittedCredentialKind Kind, string? Name, string Secret);
+
+    private enum SubmittedCredentialKind
+    {
+        Bearer,
+        Basic
     }
 
     private static AuthenticateResult Success(ClaimsPrincipal principal)

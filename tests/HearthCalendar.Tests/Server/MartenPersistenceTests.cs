@@ -178,10 +178,21 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
             CreatedAt = SubmittedAt(),
             LastUsedAt = SubmittedAt().AddMinutes(10)
         });
+        session.Store(new CalDavCredentialDocument
+        {
+            Id = Guid.NewGuid(),
+            Name = "caldav-app",
+            SecretHash = "sha256:caldav-hash-placeholder",
+            WritableCalendars = ["smart-inbox"],
+            Scopes = ["caldav:write"],
+            CreatedAt = SubmittedAt(),
+            LastUsedAt = SubmittedAt().AddMinutes(15)
+        });
         await session.SaveChangesAsync(CancellationToken.None);
 
         var credentials = await session.Query<ClientCredentialDocument>().ToListAsync(CancellationToken.None);
         var feedTokens = await session.Query<FeedTokenDocument>().ToListAsync(CancellationToken.None);
+        var calDavCredentials = await session.Query<CalDavCredentialDocument>().ToListAsync(CancellationToken.None);
 
         await Verifier.Verify(new
         {
@@ -201,6 +212,15 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
                 feedToken.Scopes,
                 LastUsedAt = feedToken.LastUsedAt?.ToString("O"),
                 feedToken.RevokedAt
+            }),
+            CalDavCredentials = calDavCredentials.Select(credential => new
+            {
+                credential.Name,
+                HasSecretHash = !string.IsNullOrWhiteSpace(credential.SecretHash),
+                credential.WritableCalendars,
+                credential.Scopes,
+                LastUsedAt = credential.LastUsedAt?.ToString("O"),
+                credential.RevokedAt
             })
         });
     }
