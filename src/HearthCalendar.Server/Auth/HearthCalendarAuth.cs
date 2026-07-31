@@ -182,7 +182,7 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
         var authorization = Request.Headers.Authorization.ToString();
         if (string.IsNullOrWhiteSpace(authorization))
         {
-            return null;
+            return ReadFeedQueryToken();
         }
 
         const string bearerPrefix = "Bearer ";
@@ -192,6 +192,18 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
         }
 
         var token = authorization[bearerPrefix.Length..].Trim();
+
+        return string.IsNullOrWhiteSpace(token) ? null : token;
+    }
+
+    private string? ReadFeedQueryToken()
+    {
+        if (!Request.Path.StartsWithSegments("/feeds", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var token = Request.Query["token"].ToString();
 
         return string.IsNullOrWhiteSpace(token) ? null : token;
     }

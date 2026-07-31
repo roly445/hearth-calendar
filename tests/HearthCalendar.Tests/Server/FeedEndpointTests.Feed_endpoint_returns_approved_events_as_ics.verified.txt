@@ -1,0 +1,41 @@
+{
+  Calendar: {
+    CALSCALE: GREGORIAN,
+    PRODID: -//Hearth Calendar//EN,
+    VERSION: 2.0,
+    X-WR-CALNAME: Hearth Combined
+  },
+  Events: [
+    {
+      CATEGORIES: Personal,
+      DTEND: 20260730T093000,
+      DTSTAMP: 20260730T000000Z,
+      DTSTART: 20260730T090000,
+      SUMMARY: Dentist for Adult A,
+      TRANSP: OPAQUE,
+      UID: stable-uid@hearth-calendar,
+      X-MICROSOFT-CDO-BUSYSTATUS: BUSY
+    },
+    {
+      CATEGORIES: Birthday,
+      DTEND;VALUE=DATE: 20260801,
+      DTSTAMP: 20260730T000000Z,
+      DTSTART;VALUE=DATE: 20260731,
+      RRULE: FREQ=YEARLY,
+      SUMMARY: Adult B birthday,
+      TRANSP: TRANSPARENT,
+      UID: stable-uid@hearth-calendar,
+      X-MICROSOFT-CDO-BUSYSTATUS: FREE
+    },
+    {
+      CATEGORIES: Family,
+      DTEND;VALUE=DATE: 20260802,
+      DTSTAMP: 20260730T000000Z,
+      DTSTART;VALUE=DATE: 20260801,
+      SUMMARY: Family planning,
+      TRANSP: OPAQUE,
+      UID: stable-uid@hearth-calendar,
+      X-MICROSOFT-CDO-BUSYSTATUS: BUSY
+    }
+  ]
+}
