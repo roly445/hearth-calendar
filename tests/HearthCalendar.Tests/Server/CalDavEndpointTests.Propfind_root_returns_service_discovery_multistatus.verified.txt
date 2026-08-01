@@ -1,0 +1,13 @@
+[
+  {
+    Href: /caldav/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Hearth Calendar CalDAV,
+    PrincipalHref: /caldav/principals/current/,
+    CalendarHomeSet: /caldav/calendars/,
+    ResourceTypes: [
+      collection,
+      principal
+    ]
+  }
+]

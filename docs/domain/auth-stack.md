@@ -58,7 +58,7 @@ Examples:
 - `home-assistant`
 - `onecalendar-windows`
 - `davx5-android`
-- `helen-phone`
+- `adult-a-phone`
 - `import-worker`
 
 Each client credential has its own secret, scopes, lifecycle, and audit trail.

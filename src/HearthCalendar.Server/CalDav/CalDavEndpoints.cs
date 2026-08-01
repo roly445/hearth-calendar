@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
@@ -13,20 +14,106 @@ public static class CalDavEndpoints
 {
     private const int MaxIcsContentBytes = 64 * 1024;
     private const string SmartInboxCalendar = "smart-inbox";
+    private const string DavNamespace = "DAV:";
+    private const string CalDavNamespace = "urn:ietf:params:xml:ns:caldav";
+    private static readonly IReadOnlyList<CalDavCalendarDescriptor> Calendars =
+    [
+        new(SmartInboxCalendar, "Smart Inbox", IsWritable: true),
+        new("combined", "Combined", IsWritable: false),
+        new("adult-a", "Adult A", IsWritable: false),
+        new("adult-b", "Adult B", IsWritable: false),
+        new("child", "Child", IsWritable: false),
+        new("family", "Family", IsWritable: false),
+        new("events", "Events", IsWritable: false)
+    ];
 
     public static IEndpointRouteBuilder MapCalDavEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        var group = endpoints
-            .MapGroup("/caldav")
-            .RequireAuthorization(HearthCalendarAuth.CalDavWritePolicy);
+        var group = endpoints.MapGroup("/caldav");
 
+        group.MapMethods("/", [HttpMethods.Options], OptionsAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
+        group.MapMethods("/{**path}", [HttpMethods.Options], OptionsAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
+        group.MapMethods("/", ["PROPFIND"], PropFindAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
+        group.MapMethods("/{**path}", ["PROPFIND"], PropFindAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
         group.MapMethods(
             "/calendars/{calendarId}/{itemId}.ics",
             [HttpMethods.Put],
-            PutCalendarObjectAsync);
+            PutCalendarObjectAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavWritePolicy);
 
         return endpoints;
     }
+
+    private static Task<IResult> OptionsAsync(HttpRequest request)
+    {
+        var path = NormalizeCalDavPath(request.Path.Value);
+        var allow = IsSmartInboxPath(path)
+            ? "OPTIONS, PROPFIND, PUT"
+            : "OPTIONS, PROPFIND";
+
+        return Task.FromResult<IResult>(new CalDavOptionsResult(allow));
+    }
+
+    private static Task<IResult> PropFindAsync(HttpRequest request)
+    {
+        var path = NormalizeCalDavPath(request.Path.Value);
+        if (path.Length == 0)
+        {
+            return Task.FromResult<IResult>(new CalDavXmlResult(MultiStatus(
+                Response(
+                    "/caldav/",
+                    PropStatOk(
+                        DisplayName("Hearth Calendar CalDAV"),
+                        ResourceType(Collection(), Principal()),
+                        CurrentUserPrincipal(),
+                        CalendarHomeSet())))));
+        }
+
+        if (string.Equals(path, "calendars", StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<IResult>(new CalDavXmlResult(MultiStatus(
+                Calendars.Select(calendar => Response(
+                    $"/caldav/calendars/{calendar.Id}/",
+                    PropStatOk(CalendarProperties(calendar)))))));
+        }
+
+        const string calendarPrefix = "calendars/";
+        if (!path.StartsWith(calendarPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return Task.FromResult<IResult>(Results.NotFound());
+        }
+
+        var calendarId = path[calendarPrefix.Length..];
+        var calendar = Calendars.FirstOrDefault(candidate =>
+            string.Equals(candidate.Id, calendarId, StringComparison.OrdinalIgnoreCase));
+
+        return calendar is null
+            ? Task.FromResult<IResult>(Results.NotFound())
+            : Task.FromResult<IResult>(new CalDavXmlResult(MultiStatus(
+                Response(
+                    $"/caldav/calendars/{calendar.Id}/",
+                    PropStatOk(CalendarProperties(calendar))))));
+    }
+
+    private static string NormalizeCalDavPath(string? path)
+    {
+        const string calDavPrefix = "/caldav";
+        var normalized = path ?? string.Empty;
+        if (normalized.StartsWith(calDavPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[calDavPrefix.Length..];
+        }
+
+        return normalized.Trim('/');
+    }
+
+    private static bool IsSmartInboxPath(string path) =>
+        string.Equals(path, $"calendars/{SmartInboxCalendar}", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWith($"calendars/{SmartInboxCalendar}/", StringComparison.OrdinalIgnoreCase);
 
     private static async Task<IResult> PutCalendarObjectAsync(
         string calendarId,
@@ -96,6 +183,132 @@ public static class CalDavEndpoints
             claim.Type == HearthCalendarAuth.AllowedCalendarClaim &&
             string.Equals(claim.Value, calendarId, StringComparison.OrdinalIgnoreCase));
 
+    private static XElement[] CalendarProperties(CalDavCalendarDescriptor calendar)
+    {
+        var privilege = calendar.IsWritable ? WritePrivilege() : ReadPrivilege();
+
+        return
+        [
+            DisplayName(calendar.DisplayName),
+            ResourceType(Collection(), Calendar()),
+            SupportedCalendarComponentSet(),
+            CurrentUserPrivilegeSet(privilege)
+        ];
+    }
+
+    private static XDocument MultiStatus(params XElement[] responses) =>
+        MultiStatus((IEnumerable<XElement>)responses);
+
+    private static XDocument MultiStatus(IEnumerable<XElement> responses)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XDocument(new XElement(dav + "multistatus", responses));
+    }
+
+    private static XElement Response(string href, XElement propStat)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(
+            dav + "response",
+            new XElement(dav + "href", href),
+            propStat);
+    }
+
+    private static XElement PropStatOk(params XElement[] properties)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(
+            dav + "propstat",
+            new XElement(dav + "prop", properties),
+            new XElement(dav + "status", "HTTP/1.1 200 OK"));
+    }
+
+    private static XElement DisplayName(string value)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(dav + "displayname", value);
+    }
+
+    private static XElement ResourceType(params XElement[] resourceTypes)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(dav + "resourcetype", resourceTypes);
+    }
+
+    private static XElement Collection()
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(dav + "collection");
+    }
+
+    private static XElement Principal()
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(dav + "principal");
+    }
+
+    private static XElement CurrentUserPrincipal()
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(
+            dav + "current-user-principal",
+            new XElement(dav + "href", "/caldav/principals/current/"));
+    }
+
+    private static XElement CalendarHomeSet()
+    {
+        XNamespace calDav = CalDavNamespace;
+        XNamespace dav = DavNamespace;
+
+        return new XElement(
+            calDav + "calendar-home-set",
+            new XElement(dav + "href", "/caldav/calendars/"));
+    }
+
+    private static XElement CurrentUserPrivilegeSet(params XElement[] privileges)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(dav + "current-user-privilege-set", privileges);
+    }
+
+    private static XElement ReadPrivilege() => Privilege("read");
+
+    private static XElement WritePrivilege() => Privilege("write");
+
+    private static XElement Privilege(string privilegeName)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(
+            dav + "privilege",
+            new XElement(dav + privilegeName));
+    }
+
+    private static XElement Calendar()
+    {
+        XNamespace calDav = CalDavNamespace;
+
+        return new XElement(calDav + "calendar");
+    }
+
+    private static XElement SupportedCalendarComponentSet()
+    {
+        XNamespace calDav = CalDavNamespace;
+
+        return new XElement(
+            calDav + "supported-calendar-component-set",
+            new XElement(calDav + "comp", new XAttribute("name", "VEVENT")));
+    }
+
     private static async Task<string?> ReadRequestBodyAsync(
         HttpRequest request,
         CancellationToken cancellationToken)
@@ -126,6 +339,35 @@ public static class CalDavEndpoints
         }
 
         return Encoding.UTF8.GetString(content.ToArray());
+    }
+}
+
+public sealed record CalDavCalendarDescriptor(string Id, string DisplayName, bool IsWritable);
+
+public sealed class CalDavOptionsResult(string allow) : IResult
+{
+    public Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status204NoContent;
+        httpContext.Response.Headers.Allow = allow;
+        httpContext.Response.Headers.Append("DAV", "1, 3, calendar-access");
+
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class CalDavXmlResult(XDocument document) : IResult
+{
+    public Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status207MultiStatus;
+        httpContext.Response.ContentType = "application/xml; charset=utf-8";
+        httpContext.Response.Headers.Append("DAV", "1, 3, calendar-access");
+
+        return httpContext.Response.WriteAsync(
+            document.ToString(SaveOptions.DisableFormatting),
+            Encoding.UTF8,
+            httpContext.RequestAborted);
     }
 }
 
