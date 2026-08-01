@@ -36,6 +36,7 @@ public static class ServiceCollectionExtensions
             storeOptions.Schema.For<AuditEntryDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<ClientCredentialDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<FeedTokenDocument>().Identity(document => document.Id);
+            storeOptions.Schema.For<CalDavCredentialDocument>().Identity(document => document.Id);
 
             return storeOptions;
         });
