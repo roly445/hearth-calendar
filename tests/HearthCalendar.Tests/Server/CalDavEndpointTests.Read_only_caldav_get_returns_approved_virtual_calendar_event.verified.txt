@@ -1,0 +1,18 @@
+﻿{
+  Calendar: {
+    CALSCALE: GREGORIAN,
+    PRODID: -//Hearth Calendar//EN,
+    VERSION: 2.0,
+    X-WR-CALNAME: Hearth AdultA
+  },
+  Event: {
+    CATEGORIES: Personal,
+    DTEND: 20260801T093000,
+    DTSTAMP: 20260730T000000Z,
+    DTSTART: 20260801T090000,
+    SUMMARY: Dentist for Adult A,
+    TRANSP: OPAQUE,
+    UID: stable-uid@hearth-calendar,
+    X-MICROSOFT-CDO-BUSYSTATUS: BUSY
+  }
+}
