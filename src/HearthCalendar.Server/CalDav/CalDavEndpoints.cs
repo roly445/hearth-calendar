@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -147,6 +148,8 @@ public static class CalDavEndpoints
 
         var submittedBy = new ActorRef(user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown-caldav-client");
         var now = DateTimeOffset.UtcNow;
+        var contentHash = CalDavContentHasher.Hash(content);
+        var eTag = CalDavContentHasher.ToETag(contentHash);
         var intent = new EventIntent(
             EventIntentId.New(),
             CalendarSource.CalDav,
@@ -168,20 +171,68 @@ public static class CalDavEndpoints
                 ["mode"] = ReviewSourceMode.Passive.ToString(),
                 ["tokenKind"] = user.FindFirstValue(HearthCalendarAuth.TokenKindClaim) ?? "unknown",
                 ["calendar"] = SmartInboxCalendar,
-                ["itemId"] = itemId
+                ["itemId"] = itemId,
+                ["etag"] = eTag
             });
 
-        await store.StoreIntentWithAuditAsync(intent, audit, cancellationToken);
+        var result = await store.UpsertCalDavObjectAsync(
+            new CalDavObjectUpsert(
+                SmartInboxCalendar,
+                itemId,
+                contentHash,
+                eTag,
+                intent,
+                audit,
+                now,
+                ReadIfMatchETags(request),
+                ReadIfMatchAny(request),
+                ReadIfNoneMatchETags(request),
+                ReadIfNoneMatchAny(request)),
+            cancellationToken);
+        if (!string.IsNullOrWhiteSpace(result.ETag))
+        {
+            request.HttpContext.Response.Headers.ETag = result.ETag;
+        }
 
-        return Results.Created(
-            $"/caldav/calendars/{SmartInboxCalendar}/{itemId}.ics",
-            new IntakeEventResponse(intent.Id.Value, "accepted"));
+        return result.Status switch
+        {
+            CalDavObjectUpsertStatus.Created => Results.Created(
+                $"/caldav/calendars/{SmartInboxCalendar}/{itemId}.ics",
+                new IntakeEventResponse(result.IntentId!.Value.Value, "accepted")),
+            CalDavObjectUpsertStatus.Replaced => Results.Ok(
+                new IntakeEventResponse(result.IntentId!.Value.Value, "accepted")),
+            CalDavObjectUpsertStatus.Unchanged => Results.NoContent(),
+            CalDavObjectUpsertStatus.PreconditionFailed => Results.StatusCode(StatusCodes.Status412PreconditionFailed),
+            _ => Results.StatusCode(StatusCodes.Status500InternalServerError)
+        };
     }
 
     private static bool CanWriteCalendar(ClaimsPrincipal user, string calendarId) =>
         user.Claims.Any(claim =>
             claim.Type == HearthCalendarAuth.AllowedCalendarClaim &&
             string.Equals(claim.Value, calendarId, StringComparison.OrdinalIgnoreCase));
+
+    private static IReadOnlyList<string> ReadIfMatchETags(HttpRequest request) =>
+        request.Headers.IfMatch
+            .SelectMany(value => value?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? [])
+            .Where(value => value != "*")
+            .ToArray();
+
+    private static bool ReadIfMatchAny(HttpRequest request) =>
+        request.Headers.IfMatch
+            .SelectMany(value => value?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? [])
+            .Any(value => value == "*");
+
+    private static IReadOnlyList<string> ReadIfNoneMatchETags(HttpRequest request) =>
+        request.Headers.IfNoneMatch
+            .SelectMany(value => value?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? [])
+            .Where(value => value != "*")
+            .ToArray();
+
+    private static bool ReadIfNoneMatchAny(HttpRequest request) =>
+        request.Headers.IfNoneMatch
+            .SelectMany(value => value?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? [])
+            .Any(value => value == "*");
 
     private static XElement[] CalendarProperties(CalDavCalendarDescriptor calendar)
     {
@@ -343,6 +394,18 @@ public static class CalDavEndpoints
 }
 
 public sealed record CalDavCalendarDescriptor(string Id, string DisplayName, bool IsWritable);
+
+public static class CalDavContentHasher
+{
+    public static string Hash(string content)
+    {
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(content));
+
+        return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    public static string ToETag(string contentHash) => $"\"{contentHash}\"";
+}
 
 public sealed class CalDavOptionsResult(string allow) : IResult
 {

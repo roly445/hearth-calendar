@@ -223,6 +223,11 @@ public sealed class FeedEndpointTests
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
+            CalDavObjectUpsert upsert,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<EventIntent?> LoadIntentAsync(EventIntentId id, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

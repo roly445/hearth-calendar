@@ -1,6 +1,7 @@
 {
   StatusCode: Created,
   Location: /caldav/calendars/smart-inbox/family-planning.ics,
+  ETag: "d3907f38ddcb0a05e8bebe5247be6f4c605db96c2ad229533be17a64298495e0",
   Body: {
     IntentId: Guid_1,
     Status: accepted
@@ -29,11 +30,27 @@
       HasIntentLink: true,
       Metadata: {
         calendar: smart-inbox,
+        etag: "d3907f38ddcb0a05e8bebe5247be6f4c605db96c2ad229533be17a64298495e0",
         itemId: family-planning,
         mode: Passive,
         source: CalDav,
         tokenKind: caldav
       },
+      ContainsRawCalDavPassword: false,
+      ContainsRawWriteToken: false,
+      ContainsRawFeedToken: false
+    }
+  ],
+  Objects: [
+    {
+      Id: smart-inbox/family-planning,
+      CalendarId: smart-inbox,
+      ItemId: family-planning,
+      HasIntentLink: true,
+      HasContentHash: true,
+      ETag: "d3907f38ddcb0a05e8bebe5247be6f4c605db96c2ad229533be17a64298495e0",
+      HasCreatedAt: true,
+      HasUpdatedAt: true,
       ContainsRawCalDavPassword: false,
       ContainsRawWriteToken: false,
       ContainsRawFeedToken: false

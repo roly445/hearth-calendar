@@ -185,3 +185,22 @@ public sealed record CalDavCredentialDocument
 
     public DateTimeOffset? RevokedAt { get; init; }
 }
+
+public sealed record CalDavObjectDocument
+{
+    public required string Id { get; init; }
+
+    public required string CalendarId { get; init; }
+
+    public required string ItemId { get; init; }
+
+    public required Guid IntentId { get; init; }
+
+    public required string ContentHash { get; init; }
+
+    public required string ETag { get; init; }
+
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    public required DateTimeOffset UpdatedAt { get; init; }
+}

@@ -12,6 +12,10 @@ public interface IHearthCalendarStore
         AuditEntry auditEntry,
         CancellationToken cancellationToken);
 
+    Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
+        CalDavObjectUpsert upsert,
+        CancellationToken cancellationToken);
+
     Task<EventIntent?> LoadIntentAsync(EventIntentId id, CancellationToken cancellationToken);
 
     Task StoreReviewOutcomeAsync(EventIntent intent, ReviewOutcome outcome, CancellationToken cancellationToken);
@@ -85,6 +89,110 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         session.Store(auditEntry.ToDocument());
 
         await session.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
+        CalDavObjectUpsert upsert,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            try
+            {
+                return await TryUpsertCalDavObjectAsync(upsert, cancellationToken);
+            }
+            catch (Exception exception) when (IsCalDavObjectWriteConflict(exception) && attempt == 0)
+            {
+                session.EjectAllPendingChanges();
+            }
+        }
+
+        throw new InvalidOperationException("CalDAV object upsert failed after retry.");
+    }
+
+    private async Task<CalDavObjectUpsertResult> TryUpsertCalDavObjectAsync(
+        CalDavObjectUpsert upsert,
+        CancellationToken cancellationToken)
+    {
+        var id = CalDavObjectDocumentId.Create(upsert.CalendarId, upsert.ItemId);
+        var current = await session.LoadAsync<CalDavObjectDocument>(id, cancellationToken);
+        if (!PreconditionsAllowWrite(upsert, current))
+        {
+            return new CalDavObjectUpsertResult(
+                CalDavObjectUpsertStatus.PreconditionFailed,
+                current is null ? null : new EventIntentId(current.IntentId),
+                current?.ETag);
+        }
+
+        if (current is not null &&
+            string.Equals(current.ContentHash, upsert.ContentHash, StringComparison.Ordinal))
+        {
+            return new CalDavObjectUpsertResult(
+                CalDavObjectUpsertStatus.Unchanged,
+                new EventIntentId(current.IntentId),
+                current.ETag);
+        }
+
+        session.Store(upsert.Intent.ToDocument());
+        session.Store(upsert.AuditEntry.ToDocument());
+        var document = new CalDavObjectDocument
+        {
+            Id = id,
+            CalendarId = upsert.CalendarId,
+            ItemId = upsert.ItemId,
+            IntentId = upsert.Intent.Id.Value,
+            ContentHash = upsert.ContentHash,
+            ETag = upsert.ETag,
+            CreatedAt = current?.CreatedAt ?? upsert.ObservedAt,
+            UpdatedAt = upsert.ObservedAt
+        };
+        if (current is null)
+        {
+            session.Insert(document);
+        }
+        else
+        {
+            session.Store(document);
+        }
+
+        await session.SaveChangesAsync(cancellationToken);
+
+        return new CalDavObjectUpsertResult(
+            current is null ? CalDavObjectUpsertStatus.Created : CalDavObjectUpsertStatus.Replaced,
+            upsert.Intent.Id,
+            upsert.ETag);
+    }
+
+    private static bool PreconditionsAllowWrite(
+        CalDavObjectUpsert upsert,
+        CalDavObjectDocument? current)
+    {
+        if (upsert.IfNoneMatchAny && current is not null)
+        {
+            return false;
+        }
+
+        if (current is not null && upsert.IfNoneMatchETags.Contains(current.ETag, StringComparer.Ordinal))
+        {
+            return false;
+        }
+
+        if (upsert.IfMatchAny && current is null)
+        {
+            return false;
+        }
+
+        if (upsert.IfMatchAny)
+        {
+            return true;
+        }
+
+        if (upsert.IfMatchETags.Count == 0)
+        {
+            return true;
+        }
+
+        return current is not null && upsert.IfMatchETags.Contains(current.ETag, StringComparer.Ordinal);
     }
 
     public async Task<EventIntent?> LoadIntentAsync(EventIntentId id, CancellationToken cancellationToken)
@@ -365,6 +473,12 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         exception.GetType().Name.Contains("Concurrency", StringComparison.Ordinal) ||
         exception.GetType().FullName?.Contains("Concurrency", StringComparison.Ordinal) == true;
 
+    private static bool IsCalDavObjectWriteConflict(Exception exception) =>
+        IsConcurrencyException(exception) ||
+        exception.GetType().Name.Contains("Duplicate", StringComparison.OrdinalIgnoreCase) ||
+        exception.Message.Contains("duplicate key", StringComparison.OrdinalIgnoreCase) ||
+        exception.Message.Contains("23505", StringComparison.Ordinal);
+
     private static bool MatchesMutationTarget(CalendarEvent currentEvent, CalendarEvent expectedEvent) =>
         currentEvent.Id == expectedEvent.Id &&
         currentEvent.ReviewStatus == ReviewStatus.Approved &&
@@ -378,6 +492,38 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         currentEvent.Recurrence == expectedEvent.Recurrence &&
         currentEvent.ResponsibleAdult == expectedEvent.ResponsibleAdult &&
         currentEvent.ParentEventId == expectedEvent.ParentEventId;
+}
+
+public sealed record CalDavObjectUpsert(
+    string CalendarId,
+    string ItemId,
+    string ContentHash,
+    string ETag,
+    EventIntent Intent,
+    AuditEntry AuditEntry,
+    DateTimeOffset ObservedAt,
+    IReadOnlyList<string> IfMatchETags,
+    bool IfMatchAny,
+    IReadOnlyList<string> IfNoneMatchETags,
+    bool IfNoneMatchAny);
+
+public sealed record CalDavObjectUpsertResult(
+    CalDavObjectUpsertStatus Status,
+    EventIntentId? IntentId,
+    string? ETag);
+
+public enum CalDavObjectUpsertStatus
+{
+    Created,
+    Unchanged,
+    Replaced,
+    PreconditionFailed
+}
+
+public static class CalDavObjectDocumentId
+{
+    public static string Create(string calendarId, string itemId) =>
+        $"{calendarId.Trim().ToLowerInvariant()}/{itemId.Trim()}";
 }
 
 public static class HearthCalendarDocumentMapping

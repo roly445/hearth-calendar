@@ -37,6 +37,9 @@ public static class ServiceCollectionExtensions
             storeOptions.Schema.For<ClientCredentialDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<FeedTokenDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<CalDavCredentialDocument>().Identity(document => document.Id);
+            storeOptions.Schema.For<CalDavObjectDocument>()
+                .Identity(document => document.Id)
+                .UseOptimisticConcurrency(true);
 
             return storeOptions;
         });

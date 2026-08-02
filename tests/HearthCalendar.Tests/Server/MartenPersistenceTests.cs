@@ -226,6 +226,51 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
     }
 
     [Fact]
+    public async Task CalDavObject_upsert_reuses_identical_retry_and_replaces_changed_content()
+    {
+        await using var services = CreateServices();
+        using var scope = services.CreateScope();
+        var store = scope.ServiceProvider.GetRequiredService<IHearthCalendarStore>();
+        var session = scope.ServiceProvider.GetRequiredService<IDocumentSession>();
+        var firstIntent = CalDavIntent("Family planning");
+        var retryIntent = CalDavIntent("Family planning", minutesOffset: 1);
+        var changedIntent = CalDavIntent("Updated family planning", minutesOffset: 2);
+
+        var first = await store.UpsertCalDavObjectAsync(
+            CalDavUpsert("family-planning", "hash-1", "\"hash-1\"", firstIntent),
+            CancellationToken.None);
+        var retry = await store.UpsertCalDavObjectAsync(
+            CalDavUpsert("family-planning", "hash-1", "\"hash-1\"", retryIntent),
+            CancellationToken.None);
+        var changed = await store.UpsertCalDavObjectAsync(
+            CalDavUpsert("family-planning", "hash-2", "\"hash-2\"", changedIntent),
+            CancellationToken.None);
+
+        var objects = await session.Query<CalDavObjectDocument>().ToListAsync(CancellationToken.None);
+        var intents = new[]
+        {
+            await store.LoadIntentAsync(first.IntentId!.Value, CancellationToken.None),
+            await store.LoadIntentAsync(retry.IntentId!.Value, CancellationToken.None),
+            await store.LoadIntentAsync(changed.IntentId!.Value, CancellationToken.None),
+            await store.LoadIntentAsync(retryIntent.Id, CancellationToken.None)
+        };
+        var audits = await store.QueryAuditEntriesAsync(CancellationToken.None);
+
+        await Verifier.Verify(new
+        {
+            Results = new[]
+            {
+                DescribeCalDavUpsert(first),
+                DescribeCalDavUpsert(retry),
+                DescribeCalDavUpsert(changed)
+            },
+            Objects = objects.Select(DescribeCalDavObject),
+            Intents = intents.Select(DescribeIntent),
+            Audits = audits.Select(DescribeAudit)
+        });
+    }
+
+    [Fact]
     public async Task DeleteApprovedEvent_removes_event_and_writes_audit()
     {
         await using var services = CreateServices();
@@ -428,6 +473,49 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
             SubmittedAt(),
             ActorRef.System);
 
+    private static EventIntent CalDavIntent(string text, int minutesOffset = 0) =>
+        new(
+            EventIntentId.New(),
+            CalendarSource.CalDav,
+            ReviewSourceMode.Passive,
+            text,
+            new EventIntentPayload(Today, new TimeOnly(10, 0), new TimeOnly(11, 0)),
+            SubmittedAt().AddMinutes(minutesOffset),
+            new ActorRef("caldav-app"));
+
+    private static CalDavObjectUpsert CalDavUpsert(
+        string itemId,
+        string contentHash,
+        string eTag,
+        EventIntent intent) =>
+        new(
+            "smart-inbox",
+            itemId,
+            contentHash,
+            eTag,
+            intent,
+            new AuditEntry(
+                AuditEntryId.New(),
+                AuditAction.IntakeIntentSubmitted,
+                intent.SubmittedBy,
+                intent.SubmittedAt,
+                "CalDAV Smart Inbox intent submitted.",
+                intent.Id,
+                Metadata: new Dictionary<string, string>
+                {
+                    ["source"] = CalendarSource.CalDav.ToString(),
+                    ["mode"] = ReviewSourceMode.Passive.ToString(),
+                    ["tokenKind"] = "caldav",
+                    ["calendar"] = "smart-inbox",
+                    ["itemId"] = itemId,
+                    ["etag"] = eTag
+                }),
+            intent.SubmittedAt,
+            [],
+            IfMatchAny: false,
+            [],
+            IfNoneMatchAny: false);
+
     private static DateTimeOffset SubmittedAt() => new(Today.ToDateTime(new TimeOnly(12, 0)), TimeSpan.Zero);
 
     private static AiReviewSuggestion Suggestion() =>
@@ -484,6 +572,25 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
             SubmittedBy = intent.SubmittedBy.Id
         };
     }
+
+    private static object DescribeCalDavUpsert(CalDavObjectUpsertResult result) => new
+    {
+        Status = result.Status.ToString(),
+        HasIntentLink = result.IntentId is not null && result.IntentId.Value.Value != Guid.Empty,
+        result.ETag
+    };
+
+    private static object DescribeCalDavObject(CalDavObjectDocument document) => new
+    {
+        document.Id,
+        document.CalendarId,
+        document.ItemId,
+        HasIntentLink = document.IntentId != Guid.Empty,
+        HasContentHash = !string.IsNullOrWhiteSpace(document.ContentHash),
+        document.ETag,
+        CreatedAt = document.CreatedAt.ToString("O"),
+        UpdatedAt = document.UpdatedAt.ToString("O")
+    };
 
     private static object DescribeEvent(CalendarEvent calendarEvent) => new
     {
