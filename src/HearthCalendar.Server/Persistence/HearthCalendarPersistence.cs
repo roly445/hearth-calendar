@@ -138,8 +138,15 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
                 current.ETag);
         }
 
+        var reviewOutcome = await upsert.ReviewOutcomeFactory(cancellationToken);
+        if (current is not null)
+        {
+            await RejectPreviousCalDavReviewAsync(current.IntentId, upsert.ObservedAt, cancellationToken);
+        }
+
         session.Store(upsert.Intent.ToDocument());
         session.Store(upsert.AuditEntry.ToDocument());
+        StoreReviewOutcome(reviewOutcome);
         var document = new CalDavObjectDocument
         {
             Id = id,
@@ -165,7 +172,76 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         return new CalDavObjectUpsertResult(
             current is null ? CalDavObjectUpsertStatus.Created : CalDavObjectUpsertStatus.Replaced,
             upsert.Intent.Id,
-            upsert.ETag);
+            upsert.ETag,
+            reviewOutcome.Decision);
+    }
+
+    private void StoreReviewOutcome(ReviewOutcome outcome)
+    {
+        if (outcome.AiSuggestion is not null)
+        {
+            session.Store(outcome.AiSuggestion.ToDocument(outcome.Decision.IntentId));
+        }
+
+        if (outcome.Decision.Event is not null)
+        {
+            session.Store(outcome.Decision.Event.ToDocument());
+        }
+
+        session.Store(outcome.Decision.ToDocument());
+        session.Store(outcome.AuditEntry.ToDocument());
+    }
+
+    private async Task RejectPreviousCalDavReviewAsync(
+        Guid intentId,
+        DateTimeOffset observedAt,
+        CancellationToken cancellationToken)
+    {
+        var decisionDocument = await session.Query<ReviewDecisionDocument>()
+            .Where(decision => decision.IntentId == intentId)
+            .OrderByDescending(decision => decision.DecidedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (decisionDocument is null || decisionDocument.Status == nameof(ReviewStatus.Rejected))
+        {
+            return;
+        }
+
+        CalendarEvent? rejectedEvent = null;
+        if (decisionDocument.CalendarEventId is not null)
+        {
+            var eventDocument = await session.LoadAsync<CalendarEventDocument>(
+                decisionDocument.CalendarEventId.Value,
+                cancellationToken);
+            if (eventDocument is not null)
+            {
+                rejectedEvent = eventDocument.ToDomain() with { ReviewStatus = ReviewStatus.Rejected };
+                session.Store(rejectedEvent.ToDocument());
+            }
+        }
+
+        var rejectedDecision = decisionDocument.ToDomain(rejectedEvent) with
+        {
+            Status = ReviewStatus.Rejected,
+            Event = rejectedEvent,
+            DecidedAt = observedAt,
+            DecidedBy = ActorRef.System
+        };
+
+        session.Store(rejectedDecision.ToDocument());
+        session.Store(new AuditEntry(
+            AuditEntryId.New(),
+            AuditAction.EventRejected,
+            ActorRef.System,
+            observedAt,
+            "CalDAV Smart Inbox object replaced previous review decision.",
+            rejectedDecision.IntentId,
+            rejectedDecision.Event?.Id,
+            rejectedDecision.Id,
+            new Dictionary<string, string>
+            {
+                ["source"] = CalendarSource.CalDav.ToString(),
+                ["reason"] = "CalDavObjectReplaced"
+            }).ToDocument());
     }
 
     private static bool PreconditionsAllowWrite(
@@ -522,6 +598,7 @@ public sealed record CalDavObjectUpsert(
     string ETag,
     EventIntent Intent,
     AuditEntry AuditEntry,
+    Func<CancellationToken, ValueTask<ReviewOutcome>> ReviewOutcomeFactory,
     DateTimeOffset ObservedAt,
     IReadOnlyList<string> IfMatchETags,
     bool IfMatchAny,
@@ -531,7 +608,8 @@ public sealed record CalDavObjectUpsert(
 public sealed record CalDavObjectUpsertResult(
     CalDavObjectUpsertStatus Status,
     EventIntentId? IntentId,
-    string? ETag);
+    string? ETag,
+    ReviewDecision? ReviewDecision = null);
 
 public enum CalDavObjectUpsertStatus
 {

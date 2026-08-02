@@ -70,6 +70,38 @@
     },
     null
   ],
+  ApprovedEvents: [
+    {
+      Title: Updated family planning,
+      PrimaryCalendar: Family,
+      Category: Family,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-07-30,
+        StartTime: 10:00:00,
+        EndTime: 11:00:00,
+        IsAllDay: false
+      },
+      Participants: [
+        {
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        },
+        {
+          PersonId: adult-b,
+          Role: Attendee,
+          BusyStatus: Busy
+        },
+        {
+          PersonId: child,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ]
+    }
+  ],
   Audits: [
     {
       Action: IntakeIntentSubmitted,
@@ -89,6 +121,32 @@
       }
     },
     {
+      Action: EventApproved,
+      Actor: system,
+      OccurredAt: DateTimeOffset_1,
+      Summary: Intent Approved.,
+      HasIntentLink: true,
+      HasCalendarEventLink: true,
+      HasReviewDecisionLink: true,
+      Metadata: {
+        mode: Passive,
+        source: CalDav
+      }
+    },
+    {
+      Action: EventRejected,
+      Actor: system,
+      OccurredAt: DateTimeOffset_2,
+      Summary: CalDAV Smart Inbox object replaced previous review decision.,
+      HasIntentLink: true,
+      HasCalendarEventLink: true,
+      HasReviewDecisionLink: true,
+      Metadata: {
+        reason: CalDavObjectReplaced,
+        source: CalDav
+      }
+    },
+    {
       Action: IntakeIntentSubmitted,
       Actor: caldav-app,
       OccurredAt: DateTimeOffset_2,
@@ -103,6 +161,19 @@
         mode: Passive,
         source: CalDav,
         tokenKind: caldav
+      }
+    },
+    {
+      Action: EventApproved,
+      Actor: system,
+      OccurredAt: DateTimeOffset_2,
+      Summary: Intent Approved.,
+      HasIntentLink: true,
+      HasCalendarEventLink: true,
+      HasReviewDecisionLink: true,
+      Metadata: {
+        mode: Passive,
+        source: CalDav
       }
     }
   ]

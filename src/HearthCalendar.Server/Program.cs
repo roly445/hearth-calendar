@@ -11,6 +11,7 @@ using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Server.SignalR;
 using HearthCalendar.Shared.Contracts.Ui;
+using HearthCalendar.Shared.Domain;
 using Microsoft.AspNetCore.Http.Json;
 
 namespace HearthCalendar.Server;
@@ -28,6 +29,7 @@ public class Program
         builder.Services.AddHearthCalendarAuth(builder.Configuration);
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSignalR();
+        builder.Services.AddSingleton<IAiReviewProvider>(_ => NoOpAiReviewProvider.Instance);
         builder.Services.AddScoped<ICalendarUpdateNotifier, SignalRCalendarUpdateNotifier>();
         builder.Services.AddScoped<IValidator<SubmitWebEventIntentCommand>, SubmitWebEventIntentCommandValidator>();
         builder.Services.AddScoped<IValidator<EditReviewItemCommand>, EditReviewItemCommandValidator>();

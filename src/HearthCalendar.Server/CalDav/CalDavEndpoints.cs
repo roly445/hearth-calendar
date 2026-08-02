@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Feeds;
+using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Shared.Domain;
@@ -143,6 +144,8 @@ public static class CalDavEndpoints
         HttpRequest request,
         ClaimsPrincipal user,
         IHearthCalendarStore store,
+        ICalendarUpdateNotifier notifier,
+        IAiReviewProvider aiReviewProvider,
         CancellationToken cancellationToken)
     {
         if (!string.Equals(calendarId, SmartInboxCalendar, StringComparison.OrdinalIgnoreCase))
@@ -195,6 +198,17 @@ public static class CalDavEndpoints
                 ["itemId"] = itemId,
                 ["etag"] = eTag
             });
+        var existingEvents = await store.QueryApprovedEventsAsync(
+            parseResult.Date,
+            parseResult.Date,
+            VirtualCalendar.Combined,
+            cancellationToken);
+        ValueTask<ReviewOutcome> ReviewAsync(CancellationToken token) =>
+            new DeterministicEventReviewPipeline(
+                DateOnly.FromDateTime(now.UtcDateTime),
+                existingEvents,
+                aiReviewProvider)
+            .ReviewWithAuditAsync(intent, token);
 
         var result = await store.UpsertCalDavObjectAsync(
             new CalDavObjectUpsert(
@@ -204,6 +218,7 @@ public static class CalDavEndpoints
                 eTag,
                 intent,
                 audit,
+                ReviewAsync,
                 now,
                 ReadIfMatchETags(request),
                 ReadIfMatchAny(request),
@@ -213,6 +228,13 @@ public static class CalDavEndpoints
         if (!string.IsNullOrWhiteSpace(result.ETag))
         {
             request.HttpContext.Response.Headers.ETag = result.ETag;
+        }
+
+        if (result.Status is CalDavObjectUpsertStatus.Created or CalDavObjectUpsertStatus.Replaced)
+        {
+            await notifier.PublishAsync(
+                CalendarUiNotifications.For(result.ReviewDecision!),
+                cancellationToken);
         }
 
         return result.Status switch
