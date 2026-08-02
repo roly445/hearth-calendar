@@ -284,6 +284,11 @@ public sealed class AuthIntakeEndpointTests
             return Task.CompletedTask;
         }
 
+        public Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
+            CalDavObjectUpsert upsert,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<EventIntent?> LoadIntentAsync(EventIntentId id, CancellationToken cancellationToken) =>
             Task.FromResult(Intents.SingleOrDefault(intent => intent.Id == id));
 

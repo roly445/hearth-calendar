@@ -1,0 +1,109 @@
+{
+  Results: [
+    {
+      Status: Created,
+      HasIntentLink: true,
+      ETag: "hash-1"
+    },
+    {
+      Status: Unchanged,
+      HasIntentLink: true,
+      ETag: "hash-1"
+    },
+    {
+      Status: Replaced,
+      HasIntentLink: true,
+      ETag: "hash-2"
+    }
+  ],
+  Objects: [
+    {
+      Id: smart-inbox/family-planning,
+      CalendarId: smart-inbox,
+      ItemId: family-planning,
+      HasIntentLink: true,
+      HasContentHash: true,
+      ETag: "hash-2",
+      CreatedAt: DateTimeOffset_1,
+      UpdatedAt: DateTimeOffset_2
+    }
+  ],
+  Intents: [
+    {
+      HasId: true,
+      Source: CalDav,
+      SourceMode: Passive,
+      RawText: Family planning,
+      Payload: {
+        Date: 2026-07-30,
+        StartTime: 10:00:00,
+        EndTime: 11:00:00
+      },
+      SubmittedAt: DateTimeOffset_1,
+      SubmittedBy: caldav-app
+    },
+    {
+      HasId: true,
+      Source: CalDav,
+      SourceMode: Passive,
+      RawText: Family planning,
+      Payload: {
+        Date: 2026-07-30,
+        StartTime: 10:00:00,
+        EndTime: 11:00:00
+      },
+      SubmittedAt: DateTimeOffset_1,
+      SubmittedBy: caldav-app
+    },
+    {
+      HasId: true,
+      Source: CalDav,
+      SourceMode: Passive,
+      RawText: Updated family planning,
+      Payload: {
+        Date: 2026-07-30,
+        StartTime: 10:00:00,
+        EndTime: 11:00:00
+      },
+      SubmittedAt: DateTimeOffset_2,
+      SubmittedBy: caldav-app
+    },
+    null
+  ],
+  Audits: [
+    {
+      Action: IntakeIntentSubmitted,
+      Actor: caldav-app,
+      OccurredAt: DateTimeOffset_1,
+      Summary: CalDAV Smart Inbox intent submitted.,
+      HasIntentLink: true,
+      HasCalendarEventLink: false,
+      HasReviewDecisionLink: false,
+      Metadata: {
+        calendar: smart-inbox,
+        etag: "hash-1",
+        itemId: family-planning,
+        mode: Passive,
+        source: CalDav,
+        tokenKind: caldav
+      }
+    },
+    {
+      Action: IntakeIntentSubmitted,
+      Actor: caldav-app,
+      OccurredAt: DateTimeOffset_2,
+      Summary: CalDAV Smart Inbox intent submitted.,
+      HasIntentLink: true,
+      HasCalendarEventLink: false,
+      HasReviewDecisionLink: false,
+      Metadata: {
+        calendar: smart-inbox,
+        etag: "hash-2",
+        itemId: family-planning,
+        mode: Passive,
+        source: CalDav,
+        tokenKind: caldav
+      }
+    }
+  ]
+}

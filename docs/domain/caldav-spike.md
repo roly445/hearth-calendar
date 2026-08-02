@@ -17,11 +17,11 @@ The minimum operations to validate with OneCalendar and DAVx5 are:
 
 | Operation | Path Shape | Purpose | Spike Status |
 | --- | --- | --- | --- |
-| `OPTIONS` | `/caldav/` | Discover DAV methods and auth challenge behaviour. | Planned next. |
-| `PROPFIND` depth `0` | `/caldav/` | Discover principal or calendar-home hints. | Planned next. |
-| `PROPFIND` depth `1` | `/caldav/calendars/` | Discover available calendars. | Planned next. |
-| `PROPFIND` depth `0/1` | `/caldav/calendars/smart-inbox/` | Discover writable Smart Inbox metadata. | Planned next. |
-| `PUT` | `/caldav/calendars/smart-inbox/{uid}.ics` | Submit a VEVENT into intake/review. | Implemented in spike. |
+| `OPTIONS` | `/caldav/` | Discover DAV methods and auth challenge behaviour. | Implemented. |
+| `PROPFIND` depth `0` | `/caldav/` | Discover principal or calendar-home hints. | Implemented. |
+| `PROPFIND` depth `1` | `/caldav/calendars/` | Discover available calendars. | Implemented. |
+| `PROPFIND` depth `0/1` | `/caldav/calendars/smart-inbox/` | Discover writable Smart Inbox metadata. | Implemented. |
+| `PUT` | `/caldav/calendars/smart-inbox/{uid}.ics` | Submit a VEVENT into intake/review. | Implemented with idempotent metadata. |
 | `GET` | `/caldav/calendars/smart-inbox/{uid}.ics` | Let clients confirm a stored object. | Planned next. |
 | `REPORT calendar-query` | `/caldav/calendars/{calendar}/` | Sync approved events for read-only calendars. | Planned next. |
 | `DELETE` | `/caldav/calendars/smart-inbox/{uid}.ics` | Request a delete through safe mutation policy. | Later phase. |
@@ -86,17 +86,22 @@ Supported date/time forms:
 
 All-day values remain all-day in the app payload and do not fake midnight times.
 
-The prototype intentionally does not yet make `PUT` idempotent for a repeated `{itemId}`. A production CalDAV implementation must persist CalDAV object metadata, etags, and URI-to-intent links so client retries replace or confirm the same object instead of creating duplicate review items.
+Smart Inbox `PUT` persists CalDAV object metadata by `{calendarId}/{itemId}` without storing the raw ICS body.
+
+Policy:
+
+- First `PUT` creates a CalDAV object metadata row, an `EventIntent`, and an audit entry.
+- Repeated identical `PUT` returns the existing ETag and does not create a duplicate intent or audit entry.
+- Changed `PUT` to the same `{itemId}` updates the metadata row, records a new ETag, and creates a new replacement `EventIntent` and audit entry.
+- The current metadata row links to the latest intent for that URI.
+- Raw app passwords, bearer tokens, and raw ICS content are not persisted in the CalDAV object metadata.
 
 ## Next Implementation Slice
 
-The next CalDAV PR should add enough discovery and sync behaviour for real clients:
+The next CalDAV PR should add enough read/query behaviour for real clients:
 
-1. `OPTIONS` with DAV method headers.
-2. Basic `PROPFIND` responses for service root, calendars collection, and Smart Inbox.
-3. `GET` for Smart Inbox objects accepted by the current process or persisted as CalDAV object metadata.
-4. Idempotent Smart Inbox `PUT` using persisted URI-to-intent links and etags.
-5. `REPORT calendar-query` for read-only virtual calendars backed by approved-event queries.
-6. Compatibility notes from manual DAVx5 and OneCalendar setup attempts.
+1. `GET` for Smart Inbox objects accepted by the current process or persisted as CalDAV object metadata.
+2. `REPORT calendar-query` for read-only virtual calendars backed by approved-event queries.
+3. Compatibility notes from manual DAVx5 and OneCalendar setup attempts.
 
-Full CalDAV recurrence, attendee handling, etags, sync tokens, timezone components, and client-driven deletes/reschedules should remain explicit follow-up work.
+Full CalDAV recurrence, attendee handling, sync tokens, timezone components, and client-driven deletes/reschedules should remain explicit follow-up work.

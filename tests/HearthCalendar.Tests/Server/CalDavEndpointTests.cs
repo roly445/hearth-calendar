@@ -174,10 +174,204 @@ public sealed class CalDavEndpointTests
         {
             response.StatusCode,
             Location = response.Headers.Location?.ToString(),
+            ETag = response.Headers.ETag?.ToString(),
             Body = await response.Content.ReadFromJsonAsync<IntakeEventResponse>(),
             StoredIntents = store.Intents.Select(DescribeIntent),
-            Audits = store.Audits.Select(DescribeAudit)
+            Audits = store.Audits.Select(DescribeAudit),
+            Objects = store.Objects.Values.Select(DescribeObject)
         });
+    }
+
+    [Fact]
+    public async Task Repeated_identical_smart_inbox_put_reuses_existing_intent_and_etag()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var first = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+        var retry = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
+        Assert.Equal(first.Headers.ETag, retry.Headers.ETag);
+        Assert.Single(store.Intents);
+        Assert.Single(store.Audits);
+        Assert.Single(store.Objects);
+    }
+
+    [Fact]
+    public async Task Changed_smart_inbox_put_replaces_object_metadata_and_creates_new_intent()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var first = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+        var changed = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:Updated family planning
+                DTSTART:20260801T120000Z
+                DTEND:20260801T130000Z
+                END:VEVENT
+                END:VCALENDAR
+                """));
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.NotEqual(first.Headers.ETag, changed.Headers.ETag);
+        Assert.Equal(2, store.Intents.Count);
+        Assert.Equal(2, store.Audits.Count);
+        var storedObject = Assert.Single(store.Objects.Values);
+        Assert.Equal(store.Intents[1].Id, storedObject.IntentId);
+        Assert.Equal(changed.Headers.ETag?.ToString(), storedObject.ETag);
+    }
+
+    [Fact]
+    public async Task Stale_if_match_is_rejected_without_creating_intent_or_audit()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+        var first = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+        var changed = new HttpRequestMessage(HttpMethod.Put, "/caldav/calendars/smart-inbox/family-planning.ics")
+        {
+            Content = IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:Updated family planning
+                DTSTART:20260801T120000Z
+                DTEND:20260801T130000Z
+                END:VEVENT
+                END:VCALENDAR
+                """)
+        };
+        changed.Headers.TryAddWithoutValidation("If-Match", "\"stale-etag\"");
+
+        var response = await client.SendAsync(changed);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal(first.Headers.ETag, response.Headers.ETag);
+        Assert.Single(store.Intents);
+        Assert.Single(store.Audits);
+        Assert.Single(store.Objects);
+    }
+
+    [Fact]
+    public async Task If_none_match_star_prevents_overwriting_existing_object()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+        var first = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+        var retry = new HttpRequestMessage(HttpMethod.Put, "/caldav/calendars/smart-inbox/family-planning.ics")
+        {
+            Content = IcsContent(BasicIcs())
+        };
+        retry.Headers.TryAddWithoutValidation("If-None-Match", "*");
+
+        var response = await client.SendAsync(retry);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal(first.Headers.ETag, response.Headers.ETag);
+        Assert.Single(store.Intents);
+        Assert.Single(store.Audits);
+        Assert.Single(store.Objects);
+    }
+
+    [Fact]
+    public async Task If_match_star_requires_existing_object()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+        var write = new HttpRequestMessage(HttpMethod.Put, "/caldav/calendars/smart-inbox/family-planning.ics")
+        {
+            Content = IcsContent(BasicIcs())
+        };
+        write.Headers.TryAddWithoutValidation("If-Match", "*");
+
+        var response = await client.SendAsync(write);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Empty(store.Intents);
+        Assert.Empty(store.Audits);
+        Assert.Empty(store.Objects);
+    }
+
+    [Fact]
+    public async Task If_none_match_matching_etag_prevents_overwrite()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+        var first = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+        var changed = new HttpRequestMessage(HttpMethod.Put, "/caldav/calendars/smart-inbox/family-planning.ics")
+        {
+            Content = IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:Updated family planning
+                DTSTART:20260801T120000Z
+                DTEND:20260801T130000Z
+                END:VEVENT
+                END:VCALENDAR
+                """)
+        };
+        changed.Headers.TryAddWithoutValidation("If-None-Match", first.Headers.ETag?.ToString());
+
+        var response = await client.SendAsync(changed);
+
+        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
+        Assert.Equal(first.Headers.ETag, response.Headers.ETag);
+        Assert.Single(store.Intents);
+        Assert.Single(store.Audits);
+        Assert.Single(store.Objects);
+    }
+
+    [Fact]
+    public async Task Smart_inbox_item_ids_remain_case_sensitive()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var upper = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/Family-Planning.ics",
+            IcsContent(BasicIcs()));
+        var lower = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+
+        Assert.Equal(HttpStatusCode.Created, upper.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, lower.StatusCode);
+        Assert.Equal(2, store.Intents.Count);
+        Assert.Equal(2, store.Audits.Count);
+        Assert.Equal(2, store.Objects.Count);
+        Assert.Contains("smart-inbox/Family-Planning", store.Objects.Keys);
+        Assert.Contains("smart-inbox/family-planning", store.Objects.Keys);
     }
 
     [Theory]
@@ -451,11 +645,86 @@ public sealed class CalDavEndpointTests
 
         public List<AuditEntry> Audits { get; } = [];
 
+        public Dictionary<string, RecordingCalDavObject> Objects { get; } = new(StringComparer.Ordinal);
+
         public Task StoreIntentAsync(EventIntent intent, CancellationToken cancellationToken)
         {
             Intents.Add(intent);
 
             return Task.CompletedTask;
+        }
+
+        public Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
+            CalDavObjectUpsert upsert,
+            CancellationToken cancellationToken)
+        {
+            var id = CalDavObjectDocumentId.Create(upsert.CalendarId, upsert.ItemId);
+            Objects.TryGetValue(id, out var current);
+            if (!PreconditionsAllowWrite(upsert, current))
+            {
+                return Task.FromResult(new CalDavObjectUpsertResult(
+                    CalDavObjectUpsertStatus.PreconditionFailed,
+                    current?.IntentId,
+                    current?.ETag));
+            }
+
+            if (current is not null &&
+                string.Equals(current.ContentHash, upsert.ContentHash, StringComparison.Ordinal))
+            {
+                return Task.FromResult(new CalDavObjectUpsertResult(
+                    CalDavObjectUpsertStatus.Unchanged,
+                    current.IntentId,
+                    current.ETag));
+            }
+
+            Intents.Add(upsert.Intent);
+            Audits.Add(upsert.AuditEntry);
+            Objects[id] = new RecordingCalDavObject(
+                id,
+                upsert.CalendarId,
+                upsert.ItemId,
+                upsert.Intent.Id,
+                upsert.ContentHash,
+                upsert.ETag,
+                current?.CreatedAt ?? upsert.ObservedAt,
+                upsert.ObservedAt);
+
+            return Task.FromResult(new CalDavObjectUpsertResult(
+                current is null ? CalDavObjectUpsertStatus.Created : CalDavObjectUpsertStatus.Replaced,
+                upsert.Intent.Id,
+                upsert.ETag));
+        }
+
+        private static bool PreconditionsAllowWrite(
+            CalDavObjectUpsert upsert,
+            RecordingCalDavObject? current)
+        {
+            if (upsert.IfNoneMatchAny && current is not null)
+            {
+                return false;
+            }
+
+            if (current is not null && upsert.IfNoneMatchETags.Contains(current.ETag, StringComparer.Ordinal))
+            {
+                return false;
+            }
+
+            if (upsert.IfMatchAny && current is null)
+            {
+                return false;
+            }
+
+            if (upsert.IfMatchAny)
+            {
+                return true;
+            }
+
+            if (upsert.IfMatchETags.Count == 0)
+            {
+                return true;
+            }
+
+            return current is not null && upsert.IfMatchETags.Contains(current.ETag, StringComparer.Ordinal);
         }
 
         public Task StoreIntentWithAuditAsync(
@@ -534,4 +803,29 @@ public sealed class CalDavEndpointTests
         public Task<IReadOnlyList<AuditEntry>> QueryAuditEntriesAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<AuditEntry>>(Audits);
     }
+
+    private static object DescribeObject(RecordingCalDavObject calDavObject) => new
+    {
+        calDavObject.Id,
+        calDavObject.CalendarId,
+        calDavObject.ItemId,
+        HasIntentLink = calDavObject.IntentId.Value != Guid.Empty,
+        HasContentHash = !string.IsNullOrWhiteSpace(calDavObject.ContentHash),
+        calDavObject.ETag,
+        HasCreatedAt = calDavObject.CreatedAt != default,
+        HasUpdatedAt = calDavObject.UpdatedAt != default,
+        ContainsRawCalDavPassword = calDavObject.ContentHash.Contains(CalDavPassword, StringComparison.Ordinal),
+        ContainsRawWriteToken = calDavObject.ContentHash.Contains(WriteToken, StringComparison.Ordinal),
+        ContainsRawFeedToken = calDavObject.ContentHash.Contains(FeedToken, StringComparison.Ordinal)
+    };
+
+    private sealed record RecordingCalDavObject(
+        string Id,
+        string CalendarId,
+        string ItemId,
+        EventIntentId IntentId,
+        string ContentHash,
+        string ETag,
+        DateTimeOffset CreatedAt,
+        DateTimeOffset UpdatedAt);
 }
