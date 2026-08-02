@@ -22,7 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\HearthCalendar.Shared\HearthCalendar.Shared.csproj" />
+    <ProjectReference Include="..\..\src\HearthCalendar.Client\HearthCalendar.Client.csproj" />
     <ProjectReference Include="..\..\src\HearthCalendar.Server\HearthCalendar.Server.csproj" />
   </ItemGroup>
 

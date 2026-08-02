@@ -1,4 +1,4 @@
-using HearthCalendar.Shared.Domain;
+using HearthCalendar.Server.Domain;
 using Marten;
 
 namespace HearthCalendar.Server.Persistence;

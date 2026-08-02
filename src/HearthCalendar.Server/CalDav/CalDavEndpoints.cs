@@ -9,7 +9,7 @@ using HearthCalendar.Server.Feeds;
 using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
-using HearthCalendar.Shared.Domain;
+using HearthCalendar.Server.Domain;
 
 namespace HearthCalendar.Server.CalDav;
 

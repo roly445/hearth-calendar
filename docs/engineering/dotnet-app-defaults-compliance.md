@@ -10,7 +10,7 @@ These standards apply to:
 
 - ASP.NET Core server code
 - Blazor WebAssembly client code
-- shared BluQube contracts
+- client-owned BluQube contracts
 - Marten/PostgreSQL infrastructure
 - tests
 - build configuration
@@ -23,12 +23,12 @@ Adopt now:
 - Use a hosted Blazor WebAssembly solution:
   - `HearthCalendar.Server`
   - `HearthCalendar.Client`
-  - `HearthCalendar.Shared`
   - test project or projects under `tests/`
 - Prefer feature-oriented folders over horizontal technical buckets.
-- Keep BluQube request/result contracts in shared code.
+- Keep BluQube request/result contracts and UI DTOs in the client project.
+- Keep server domain types out of client-owned BluQube contracts.
 - Keep BluQube handlers, processors, validators, authorizers, Marten access, ASP.NET middleware, and SignalR hubs on the server.
-- Keep domain/review logic plain and testable.
+- Keep domain/review logic plain, testable, and server-owned.
 - Keep external adapters outside core domain policy.
 
 Avoid:
@@ -50,6 +50,7 @@ Adopt now:
 - Validate important configuration at startup.
 - Keep solution/project files modern SDK-style.
 - Add GitHub Actions CI in the first implementation PR.
+- Keep generated Blazor `wwwroot` output out of Git; author SCSS, TypeScript, and PWA source assets under the client `Assets` folder and build them through the root `npm run build:assets` script.
 
 Acceptance criteria:
 
@@ -59,6 +60,7 @@ Acceptance criteria:
 - Invalid DI graphs fail during development/test startup.
 - Missing required config fails with a clear message.
 - CI restores, builds, and tests on pull requests and pushes to `main`.
+- CI runs `npm ci` before `dotnet build` so generated client assets exist when Blazor static web assets are resolved.
 
 ## Validation
 
@@ -229,6 +231,7 @@ Adopt now:
 - UI refreshes data through BluQube queries after SignalR messages.
 - PWA offline mode only queues safe new event intents.
 - Approve, reject, delete, and reschedule require current server state.
+- Authored browser code uses SCSS and TypeScript; generated CSS, JavaScript, and PWA output are written to ignored `wwwroot`.
 
 Acceptance criteria:
 

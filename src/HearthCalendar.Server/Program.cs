@@ -10,8 +10,8 @@ using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Server.SignalR;
-using HearthCalendar.Shared.Contracts.Ui;
-using HearthCalendar.Shared.Domain;
+using HearthCalendar.Client.Contracts.Ui;
+using HearthCalendar.Server.Domain;
 using Microsoft.AspNetCore.Http.Json;
 
 namespace HearthCalendar.Server;

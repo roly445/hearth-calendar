@@ -1,4 +1,4 @@
-using HearthCalendar.Shared.Contracts.Ui;
+using HearthCalendar.Client.Contracts.Ui;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.SignalR.Client;
 
