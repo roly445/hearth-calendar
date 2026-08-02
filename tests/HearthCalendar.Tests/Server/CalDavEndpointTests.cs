@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
+using System.Xml.Linq;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.CalDav;
 using HearthCalendar.Server.Intake;
@@ -19,8 +20,133 @@ public sealed class CalDavEndpointTests
 {
     private const string CalDavUser = "caldav-app";
     private const string CalDavPassword = "test-caldav-app-password";
+    private const string CalDavReadUser = "caldav-read-app";
+    private const string CalDavReadPassword = "test-caldav-read-app-password";
     private const string WriteToken = "test-write-token";
     private const string FeedToken = "test-feed-token";
+
+    [Fact]
+    public async Task Discovery_requires_caldav_basic_authentication_challenge()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+
+        var response = await client.SendAsync(PropFind("/caldav/"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("Basic realm=\"Hearth Calendar CalDAV\"", response.Headers.WwwAuthenticate.ToString());
+    }
+
+    [Fact]
+    public async Task Options_advertises_caldav_discovery_methods()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var root = await client.SendAsync(new HttpRequestMessage(HttpMethod.Options, "/caldav/"));
+        var smartInbox = await client.SendAsync(new HttpRequestMessage(
+            HttpMethod.Options,
+            "/caldav/calendars/smart-inbox/"));
+        var smartInboxArchive = await client.SendAsync(new HttpRequestMessage(
+            HttpMethod.Options,
+            "/caldav/calendars/smart-inbox-archive/"));
+
+        Assert.Equal(HttpStatusCode.NoContent, root.StatusCode);
+        Assert.Equal("OPTIONS, PROPFIND", root.Content.Headers.Allow.ToString());
+        Assert.Equal("1, 3, calendar-access", root.Headers.GetValues("DAV").Single());
+        Assert.Equal(HttpStatusCode.NoContent, smartInbox.StatusCode);
+        Assert.Equal("OPTIONS, PROPFIND, PUT", smartInbox.Content.Headers.Allow.ToString());
+        Assert.Equal("1, 3, calendar-access", smartInbox.Headers.GetValues("DAV").Single());
+        Assert.Equal(HttpStatusCode.NoContent, smartInboxArchive.StatusCode);
+        Assert.Equal("OPTIONS, PROPFIND", smartInboxArchive.Content.Headers.Allow.ToString());
+    }
+
+    [Theory]
+    [InlineData(WriteToken)]
+    [InlineData(FeedToken)]
+    public async Task Bearer_tokens_cannot_use_caldav_discovery(string token)
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var response = await client.SendAsync(PropFind("/caldav/calendars/"));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Read_only_caldav_credential_can_discover_but_not_write()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavReadUser, CalDavReadPassword);
+
+        var discovery = await client.SendAsync(PropFind("/caldav/calendars/"));
+        var write = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+
+        Assert.Equal((HttpStatusCode)207, discovery.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
+        Assert.Empty(store.Intents);
+        Assert.Empty(store.Audits);
+    }
+
+    [Fact]
+    public async Task Propfind_root_returns_service_discovery_multistatus()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var response = await client.SendAsync(PropFind("/caldav/"));
+        var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal((HttpStatusCode)207, response.StatusCode);
+        Assert.Equal("application/xml", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("1, 3, calendar-access", response.Headers.GetValues("DAV").Single());
+        await Verifier.Verify(NormalizeDiscoveryXml(document));
+    }
+
+    [Fact]
+    public async Task Propfind_calendars_returns_smart_inbox_and_virtual_calendar_metadata()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var response = await client.SendAsync(PropFind("/caldav/calendars/", depth: "1"));
+        var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal((HttpStatusCode)207, response.StatusCode);
+        await Verifier.Verify(NormalizeDiscoveryXml(document));
+    }
+
+    [Fact]
+    public async Task Propfind_smart_inbox_marks_calendar_writable()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var response = await client.SendAsync(PropFind("/caldav/calendars/smart-inbox/", depth: "0"));
+        var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        var discovery = NormalizeDiscoveryXml(document);
+
+        Assert.Equal((HttpStatusCode)207, response.StatusCode);
+        Assert.Contains(discovery, item =>
+            item.Href == "/caldav/calendars/smart-inbox/" &&
+            item.Privileges.SequenceEqual(["write"]));
+    }
 
     [Fact]
     public async Task Smart_inbox_put_creates_caldav_event_intent_and_audit()
@@ -197,7 +323,10 @@ public sealed class CalDavEndpointTests
                         ["Auth:CalDavCredentials:0:Name"] = CalDavUser,
                         ["Auth:CalDavCredentials:0:SecretHash"] = HearthCalendarSecretHasher.Hash(CalDavPassword),
                         ["Auth:CalDavCredentials:0:WritableCalendars:0"] = "smart-inbox",
-                        ["Auth:CalDavCredentials:0:Scopes:0"] = HearthCalendarAuth.CalDavWriteScope
+                        ["Auth:CalDavCredentials:0:Scopes:0"] = HearthCalendarAuth.CalDavWriteScope,
+                        ["Auth:CalDavCredentials:1:Name"] = CalDavReadUser,
+                        ["Auth:CalDavCredentials:1:SecretHash"] = HearthCalendarSecretHasher.Hash(CalDavReadPassword),
+                        ["Auth:CalDavCredentials:1:Scopes:0"] = HearthCalendarAuth.CalDavReadScope
                     });
                 });
                 builder.ConfigureTestServices(services =>
@@ -216,6 +345,60 @@ public sealed class CalDavEndpointTests
 
     private static StringContent IcsContent(string content) =>
         new(content.Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "\r\n", StringComparison.Ordinal), Encoding.UTF8, "text/calendar");
+
+    private static HttpRequestMessage PropFind(string uri, string depth = "0")
+    {
+        var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), uri);
+        request.Headers.TryAddWithoutValidation("Depth", depth);
+
+        return request;
+    }
+
+    private static IReadOnlyList<CalDavDiscoveryResponse> NormalizeDiscoveryXml(XDocument document)
+    {
+        XNamespace dav = "DAV:";
+        XNamespace calDav = "urn:ietf:params:xml:ns:caldav";
+
+        return document
+            .Descendants(dav + "response")
+            .Select(response => new CalDavDiscoveryResponse(
+                response.Element(dav + "href")?.Value ?? string.Empty,
+                response.Descendants(dav + "status").SingleOrDefault()?.Value ?? string.Empty,
+                response.Descendants(dav + "displayname").SingleOrDefault()?.Value ?? string.Empty,
+                response.Descendants(dav + "current-user-principal").Elements(dav + "href").SingleOrDefault()?.Value ?? string.Empty,
+                response.Descendants(calDav + "calendar-home-set").Elements(dav + "href").SingleOrDefault()?.Value ?? string.Empty,
+                response
+                    .Descendants(dav + "resourcetype")
+                    .Elements()
+                    .Select(element => element.Name.LocalName)
+                    .Order()
+                    .ToArray(),
+                response
+                    .Descendants(calDav + "comp")
+                    .Select(element => element.Attribute("name")?.Value)
+                    .Where(name => name is not null)
+                    .Select(name => name!)
+                    .Order()
+                    .ToArray(),
+                response
+                    .Descendants(dav + "privilege")
+                    .Elements()
+                    .Select(element => element.Name.LocalName)
+                    .Order()
+                    .ToArray()))
+            .OrderBy(response => response.Href)
+            .ToArray();
+    }
+
+    private sealed record CalDavDiscoveryResponse(
+        string Href,
+        string Status,
+        string DisplayName,
+        string PrincipalHref,
+        string CalendarHomeSet,
+        IReadOnlyList<string> ResourceTypes,
+        IReadOnlyList<string> Components,
+        IReadOnlyList<string> Privileges);
 
     private static string BasicIcs() =>
         """

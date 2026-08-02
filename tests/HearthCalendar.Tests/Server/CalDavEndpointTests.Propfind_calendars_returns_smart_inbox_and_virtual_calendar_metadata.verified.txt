@@ -1,0 +1,121 @@
+[
+  {
+    Href: /caldav/calendars/adult-a/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Adult A,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      read
+    ]
+  },
+  {
+    Href: /caldav/calendars/adult-b/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Adult B,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      read
+    ]
+  },
+  {
+    Href: /caldav/calendars/child/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Child,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      read
+    ]
+  },
+  {
+    Href: /caldav/calendars/combined/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Combined,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      read
+    ]
+  },
+  {
+    Href: /caldav/calendars/events/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Events,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      read
+    ]
+  },
+  {
+    Href: /caldav/calendars/family/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Family,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      read
+    ]
+  },
+  {
+    Href: /caldav/calendars/smart-inbox/,
+    Status: HTTP/1.1 200 OK,
+    DisplayName: Smart Inbox,
+    PrincipalHref: ,
+    CalendarHomeSet: ,
+    ResourceTypes: [
+      calendar,
+      collection
+    ],
+    Components: [
+      VEVENT
+    ],
+    Privileges: [
+      write
+    ]
+  }
+]

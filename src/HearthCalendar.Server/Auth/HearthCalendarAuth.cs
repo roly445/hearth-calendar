@@ -15,6 +15,7 @@ public static class HearthCalendarAuth
     public const string AdminPolicy = "Admin";
     public const string IntakeWritePolicy = "IntakeWrite";
     public const string FeedReadPolicy = "FeedRead";
+    public const string CalDavReadPolicy = "CalDavRead";
     public const string CalDavWritePolicy = "CalDavWrite";
     public const string ScopeClaim = "scope";
     public const string TokenKindClaim = "token_kind";
@@ -25,6 +26,7 @@ public static class HearthCalendarAuth
     public const string AdminWebScope = "admin:web";
     public const string IntakeWriteScope = "intake:write";
     public const string FeedReadScope = "feed:read";
+    public const string CalDavReadScope = "caldav:read";
     public const string CalDavWriteScope = "caldav:write";
 
     public static IServiceCollection AddHearthCalendarAuth(
@@ -79,6 +81,15 @@ public static class HearthCalendarAuth
                 policy.RequireAuthenticatedUser();
                 policy.RequireClaim(TokenKindClaim, FeedTokenKind);
                 policy.RequireClaim(ScopeClaim, FeedReadScope);
+            })
+            .AddPolicy(CalDavReadPolicy, policy =>
+            {
+                policy.AddAuthenticationSchemes(TokenScheme);
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim(TokenKindClaim, CalDavTokenKind);
+                policy.RequireAssertion(context =>
+                    context.User.HasClaim(ScopeClaim, CalDavReadScope) ||
+                    context.User.HasClaim(ScopeClaim, CalDavWriteScope));
             })
             .AddPolicy(CalDavWritePolicy, policy =>
             {
@@ -167,6 +178,8 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
     IOptions<HearthCalendarAuthOptions> authOptions)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
+    private const string CalDavRealm = "Hearth Calendar CalDAV";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var credential = ReadCredential();
@@ -213,6 +226,25 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
         }
 
         return Task.FromResult(AuthenticateResult.Fail("Invalid token."));
+    }
+
+    protected override Task HandleChallengeAsync(AuthenticationProperties properties)
+    {
+        if (Request.Path.StartsWithSegments("/caldav", StringComparison.OrdinalIgnoreCase))
+        {
+            Response.Headers.WWWAuthenticate = $"Basic realm=\"{CalDavRealm}\"";
+        }
+
+        Response.StatusCode = StatusCodes.Status401Unauthorized;
+
+        return Task.CompletedTask;
+    }
+
+    protected override Task HandleForbiddenAsync(AuthenticationProperties properties)
+    {
+        Response.StatusCode = StatusCodes.Status403Forbidden;
+
+        return Task.CompletedTask;
     }
 
     private SubmittedCredential? ReadCredential()
