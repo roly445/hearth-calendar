@@ -271,6 +271,11 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
             await store.LoadIntentAsync(retryIntent.Id, CancellationToken.None)
         };
         var audits = await store.QueryAuditEntriesAsync(CancellationToken.None);
+        var approvedEvents = await store.QueryApprovedEventsAsync(
+            Today,
+            Today,
+            VirtualCalendar.Combined,
+            CancellationToken.None);
 
         await Verifier.Verify(new
         {
@@ -282,6 +287,7 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
             },
             Objects = objects.Select(DescribeCalDavObject),
             Intents = intents.Select(DescribeIntent),
+            ApprovedEvents = approvedEvents.Select(DescribeEvent),
             Audits = audits.Select(DescribeAudit)
         });
     }
@@ -526,6 +532,7 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
                     ["itemId"] = itemId,
                     ["etag"] = eTag
                 }),
+            _ => ValueTask.FromResult(Pipeline(NoOpAiReviewProvider.Instance).ReviewWithAudit(intent)),
             intent.SubmittedAt,
             [],
             IfMatchAny: false,

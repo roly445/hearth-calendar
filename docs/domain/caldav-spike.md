@@ -2,7 +2,7 @@
 
 This spike defines the smallest app-owned CalDAV surface for Hearth Calendar.
 
-CalDAV remains an intake adapter. PostgreSQL through Marten is still the source of truth, and accepted CalDAV writes enter the same app-owned intake and audit model as other sources. Full review, approval, staging, and rejection processing is the next implementation step after the protocol write shape is proven.
+CalDAV remains an intake adapter. PostgreSQL through Marten is still the source of truth, and accepted CalDAV writes enter the same app-owned intake, review, and audit model as other sources.
 
 ## Goals
 
@@ -21,7 +21,7 @@ The minimum operations to validate with OneCalendar and DAVx5 are:
 | `PROPFIND` depth `0` | `/caldav/` | Discover principal or calendar-home hints. | Implemented. |
 | `PROPFIND` depth `1` | `/caldav/calendars/` | Discover available calendars. | Implemented. |
 | `PROPFIND` depth `0/1` | `/caldav/calendars/smart-inbox/` | Discover writable Smart Inbox metadata. | Implemented. |
-| `PUT` | `/caldav/calendars/smart-inbox/{uid}.ics` | Submit a VEVENT into intake/review. | Implemented with idempotent metadata. |
+| `PUT` | `/caldav/calendars/smart-inbox/{uid}.ics` | Submit a VEVENT into intake/review. | Implemented with idempotent metadata and review pipeline integration. |
 | `GET` | `/caldav/calendars/{calendar}/{eventId}.ics` | Read one approved event from a read-only virtual calendar. | Implemented for virtual calendars. |
 | `REPORT calendar-query` | `/caldav/calendars/{calendar}/` | Sync approved events for read-only calendars. | Implemented for virtual calendars with date-range filtering. |
 | `DELETE` | `/caldav/calendars/smart-inbox/{uid}.ics` | Request a delete through safe mutation policy. | Later phase. |
@@ -66,7 +66,7 @@ Raw app passwords must never be stored or written to audit metadata. Configurati
 
 Read credentials can be scoped to approved virtual calendars independently from writable Smart Inbox credentials. Feed bearer/query tokens, intake bearer tokens, and admin cookie/session credentials cannot use the CalDAV protocol surface.
 
-## Implemented Prototype
+## Implemented Smart Inbox Write Flow
 
 `PUT /caldav/calendars/smart-inbox/{itemId}.ics` accepts a minimal VEVENT with:
 
@@ -81,6 +81,8 @@ The endpoint creates:
 - `EventIntent.RawText = SUMMARY`
 - `EventIntent.Payload` from `DTSTART` and optional `DTEND`
 - an `IntakeIntentSubmitted` audit entry with CalDAV metadata
+- a normal review decision through the deterministic and optional AI-assisted review pipeline
+- a review audit entry for approved, staged, or rejected decisions
 
 Supported date/time forms:
 
@@ -95,10 +97,13 @@ Smart Inbox `PUT` persists CalDAV object metadata by `{calendarId}/{itemId}` wit
 Policy:
 
 - First `PUT` creates a CalDAV object metadata row, an `EventIntent`, and an audit entry.
-- Repeated identical `PUT` returns the existing ETag and does not create a duplicate intent or audit entry.
-- Changed `PUT` to the same `{itemId}` updates the metadata row, records a new ETag, and creates a new replacement `EventIntent` and audit entry.
+- First `PUT` also stores the review outcome in the same persistence boundary: approved writes become approved app events, ambiguous writes become staged review items, and rejected outcomes remain hidden from approved views.
+- Repeated identical `PUT` returns the existing ETag and does not create a duplicate intent, audit entry, review decision, approved event, AI review call, or UI notification.
+- Changed `PUT` to the same `{itemId}` updates the metadata row, records a new ETag, and creates a new replacement `EventIntent`, intake audit, review decision, and review audit.
 - The current metadata row links to the latest intent for that URI.
 - Raw app passwords, bearer tokens, and raw ICS content are not persisted in the CalDAV object metadata.
+- Connected UI clients are notified only after the CalDAV metadata and review outcome persist successfully.
+- AI review remains advisory and plug-and-play through `IAiReviewProvider`; deterministic safety decisions still win.
 
 ## Read-Only Virtual Calendar Projection
 
@@ -115,6 +120,6 @@ Both read paths reuse the same approved-event projection and ICS output rules as
 
 ## Next Implementation Slice
 
-The next CalDAV PR should connect approved Smart Inbox submissions into the review pipeline or add a compatibility spike against DAVx5 and OneCalendar.
+The next CalDAV work should be a compatibility spike against DAVx5 and OneCalendar, plus explicit follow-up issues for any client-specific sync expectations.
 
 Full CalDAV recurrence, attendee handling, sync tokens, timezone components, and client-driven deletes/reschedules should remain explicit follow-up work.

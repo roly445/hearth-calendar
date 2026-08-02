@@ -5,8 +5,10 @@ using System.Text;
 using System.Xml.Linq;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.CalDav;
+using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
+using HearthCalendar.Shared.Contracts.Ui;
 using HearthCalendar.Shared.Domain;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -337,8 +339,8 @@ public sealed class CalDavEndpointTests
                 BEGIN:VEVENT
                 UID:family-planning@example.invalid
                 SUMMARY:Family planning
-                DTSTART:20260801T100000Z
-                DTEND:20260801T110000Z
+                DTSTART:20260901T100000Z
+                DTEND:20260901T110000Z
                 END:VEVENT
                 END:VCALENDAR
                 """));
@@ -351,15 +353,157 @@ public sealed class CalDavEndpointTests
             Body = await response.Content.ReadFromJsonAsync<IntakeEventResponse>(),
             StoredIntents = store.Intents.Select(DescribeIntent),
             Audits = store.Audits.Select(DescribeAudit),
+            Decisions = store.Decisions.Select(DescribeDecision),
+            ApprovedEvents = store.ApprovedEvents.Select(DescribeEvent),
             Objects = store.Objects.Values.Select(DescribeObject)
         });
+    }
+
+    [Fact]
+    public async Task Smart_inbox_put_publishes_after_review_outcome_persists()
+    {
+        var store = new RecordingCalDavStore();
+        var notifier = new RecordingNotifier(store);
+        await using var factory = CreateFactory(store, notifier);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var response = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/family-planning.ics",
+            IcsContent(BasicIcs()));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.True(notifier.StoreHadPersistedDecisionWhenPublished);
+        Assert.Contains(notifier.Published, notification => notification.Type == CalendarUiNotifications.ReviewQueueChanged);
+        Assert.Contains(notifier.Published, notification => notification.Type == CalendarUiNotifications.CalendarEventsChanged);
+    }
+
+    [Fact]
+    public async Task Ambiguous_smart_inbox_put_becomes_staged_review_item_not_approved_event()
+    {
+        var store = new RecordingCalDavStore();
+        var notifier = new RecordingNotifier(store);
+        await using var factory = CreateFactory(store, notifier);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var response = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/school-trip.ics",
+            IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:School trip
+                DTSTART:20260901T100000Z
+                DTEND:20260901T110000Z
+                END:VEVENT
+                END:VCALENDAR
+                """));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var decision = Assert.Single(store.Decisions);
+        Assert.Equal(ReviewStatus.Staged, decision.Status);
+        Assert.Contains(decision.Reasons, reason => reason.Code == DecisionReasonCode.AmbiguousIntent);
+        Assert.Empty(store.ApprovedEvents);
+        Assert.Contains(store.Audits, audit => audit.Action == AuditAction.EventStaged);
+        Assert.Contains(notifier.Published, notification => notification.Type == CalendarUiNotifications.ReviewQueueChanged);
+        Assert.DoesNotContain(notifier.Published, notification => notification.Type == CalendarUiNotifications.CalendarEventsChanged);
+    }
+
+    [Fact]
+    public async Task Caldav_review_uses_plug_in_ai_provider_as_advisory()
+    {
+        var store = new RecordingCalDavStore();
+        var provider = new CountingAiReviewProvider(new AiReviewSuggestion(
+            AiReviewSuggestionId.New(),
+            "stub",
+            "stub-model",
+            "Adult A appointment",
+            VirtualCalendar.AdultA,
+            [KnownPeople.AdultA.Id],
+            null,
+            null,
+            0.95m,
+            ["Matched placeholder details."],
+            DateTimeOffset.UtcNow));
+        await using var factory = CreateFactory(store, aiReviewProvider: provider);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var response = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/appointment.ics",
+            IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:Appointment
+                DTSTART:20260901T100000Z
+                DTEND:20260901T110000Z
+                END:VEVENT
+                END:VCALENDAR
+                """));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        Assert.Equal(1, provider.Calls);
+        var decision = Assert.Single(store.Decisions);
+        Assert.Equal(DecisionMode.AssistedByAi, decision.Mode);
+        Assert.Equal(ReviewStatus.Approved, decision.Status);
+        Assert.Single(store.ApprovedEvents);
+    }
+
+    [Fact]
+    public async Task Identical_smart_inbox_retry_does_not_call_ai_provider_again()
+    {
+        var store = new RecordingCalDavStore();
+        var provider = new CountingAiReviewProvider(new AiReviewSuggestion(
+            AiReviewSuggestionId.New(),
+            "stub",
+            "stub-model",
+            "Adult A appointment",
+            VirtualCalendar.AdultA,
+            [KnownPeople.AdultA.Id],
+            null,
+            null,
+            0.95m,
+            ["Matched placeholder details."],
+            DateTimeOffset.UtcNow));
+        await using var factory = CreateFactory(store, aiReviewProvider: provider);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
+
+        var first = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/appointment.ics",
+            IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:Appointment
+                DTSTART:20260901T100000Z
+                DTEND:20260901T110000Z
+                END:VEVENT
+                END:VCALENDAR
+                """));
+        var retry = await client.PutAsync(
+            "/caldav/calendars/smart-inbox/appointment.ics",
+            IcsContent("""
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                SUMMARY:Appointment
+                DTSTART:20260901T100000Z
+                DTEND:20260901T110000Z
+                END:VEVENT
+                END:VCALENDAR
+                """));
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
+        Assert.Equal(1, provider.Calls);
+        Assert.Single(store.Decisions);
     }
 
     [Fact]
     public async Task Repeated_identical_smart_inbox_put_reuses_existing_intent_and_etag()
     {
         var store = new RecordingCalDavStore();
-        await using var factory = CreateFactory(store);
+        var notifier = new RecordingNotifier(store);
+        await using var factory = CreateFactory(store, notifier);
         using var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = Basic(CalDavUser, CalDavPassword);
 
@@ -374,8 +518,11 @@ public sealed class CalDavEndpointTests
         Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
         Assert.Equal(first.Headers.ETag, retry.Headers.ETag);
         Assert.Single(store.Intents);
-        Assert.Single(store.Audits);
+        Assert.Equal(2, store.Audits.Count);
+        Assert.Single(store.Decisions);
+        Assert.Single(store.ApprovedEvents);
         Assert.Single(store.Objects);
+        Assert.Equal(2, notifier.Published.Count);
     }
 
     [Fact]
@@ -395,8 +542,8 @@ public sealed class CalDavEndpointTests
                 BEGIN:VCALENDAR
                 BEGIN:VEVENT
                 SUMMARY:Updated family planning
-                DTSTART:20260801T120000Z
-                DTEND:20260801T130000Z
+                DTSTART:20260901T120000Z
+                DTEND:20260901T130000Z
                 END:VEVENT
                 END:VCALENDAR
                 """));
@@ -405,7 +552,11 @@ public sealed class CalDavEndpointTests
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.NotEqual(first.Headers.ETag, changed.Headers.ETag);
         Assert.Equal(2, store.Intents.Count);
-        Assert.Equal(2, store.Audits.Count);
+        Assert.Equal(5, store.Audits.Count);
+        Assert.Equal(2, store.Decisions.Count);
+        Assert.Single(store.ApprovedEvents);
+        Assert.Contains(store.Decisions, decision => decision.Status == ReviewStatus.Rejected);
+        Assert.Contains(store.Decisions, decision => decision.Status == ReviewStatus.Approved);
         var storedObject = Assert.Single(store.Objects.Values);
         Assert.Equal(store.Intents[1].Id, storedObject.IntentId);
         Assert.Equal(changed.Headers.ETag?.ToString(), storedObject.ETag);
@@ -440,7 +591,7 @@ public sealed class CalDavEndpointTests
         Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
         Assert.Equal(first.Headers.ETag, response.Headers.ETag);
         Assert.Single(store.Intents);
-        Assert.Single(store.Audits);
+        Assert.Equal(2, store.Audits.Count);
         Assert.Single(store.Objects);
     }
 
@@ -465,7 +616,7 @@ public sealed class CalDavEndpointTests
         Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
         Assert.Equal(first.Headers.ETag, response.Headers.ETag);
         Assert.Single(store.Intents);
-        Assert.Single(store.Audits);
+        Assert.Equal(2, store.Audits.Count);
         Assert.Single(store.Objects);
     }
 
@@ -519,7 +670,7 @@ public sealed class CalDavEndpointTests
         Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
         Assert.Equal(first.Headers.ETag, response.Headers.ETag);
         Assert.Single(store.Intents);
-        Assert.Single(store.Audits);
+        Assert.Equal(2, store.Audits.Count);
         Assert.Single(store.Objects);
     }
 
@@ -541,7 +692,8 @@ public sealed class CalDavEndpointTests
         Assert.Equal(HttpStatusCode.Created, upper.StatusCode);
         Assert.Equal(HttpStatusCode.Created, lower.StatusCode);
         Assert.Equal(2, store.Intents.Count);
-        Assert.Equal(2, store.Audits.Count);
+        Assert.Equal(4, store.Audits.Count);
+        Assert.Equal(2, store.Decisions.Count);
         Assert.Equal(2, store.Objects.Count);
         Assert.Contains("smart-inbox/Family-Planning", store.Objects.Keys);
         Assert.Contains("smart-inbox/family-planning", store.Objects.Keys);
@@ -670,7 +822,9 @@ public sealed class CalDavEndpointTests
     }
 
     private static WebApplicationFactory<HearthCalendar.Server.Program> CreateFactory(
-        RecordingCalDavStore store) =>
+        RecordingCalDavStore store,
+        RecordingNotifier? notifier = null,
+        IAiReviewProvider? aiReviewProvider = null) =>
         new WebApplicationFactory<HearthCalendar.Server.Program>()
             .WithWebHostBuilder(builder =>
             {
@@ -701,7 +855,11 @@ public sealed class CalDavEndpointTests
                 builder.ConfigureTestServices(services =>
                 {
                     services.RemoveAll<IHearthCalendarStore>();
+                    services.RemoveAll<ICalendarUpdateNotifier>();
+                    services.RemoveAll<IAiReviewProvider>();
                     services.AddSingleton<IHearthCalendarStore>(store);
+                    services.AddSingleton<ICalendarUpdateNotifier>(notifier ?? new RecordingNotifier(store));
+                    services.AddSingleton(aiReviewProvider ?? NoOpAiReviewProvider.Instance);
                 });
             });
 
@@ -842,8 +1000,8 @@ public sealed class CalDavEndpointTests
         BEGIN:VCALENDAR
         BEGIN:VEVENT
         SUMMARY:Family planning
-        DTSTART:20260801T100000Z
-        DTEND:20260801T110000Z
+        DTSTART:20260901T100000Z
+        DTEND:20260901T110000Z
         END:VEVENT
         END:VCALENDAR
         """;
@@ -906,6 +1064,48 @@ public sealed class CalDavEndpointTests
         ContainsRawFeedToken = ContainsValue(audit.Metadata, FeedToken)
     };
 
+    private static object DescribeDecision(ReviewDecision decision) => new
+    {
+        Status = decision.Status.ToString(),
+        Mode = decision.Mode.ToString(),
+        Event = decision.Event is null ? null : DescribeEvent(decision.Event),
+        Reasons = decision.Reasons.Select(reason => new
+        {
+            Code = reason.Code.ToString(),
+            reason.Message
+        }),
+        Clashes = decision.Clashes.Select(clash => new
+        {
+            Severity = clash.Severity.ToString(),
+            clash.Summary,
+            AffectedPeople = clash.AffectedPeople.Select(person => person.Id.Value)
+        }),
+        HasAiSuggestionLink = decision.AiSuggestionId is not null
+    };
+
+    private static object DescribeEvent(CalendarEvent calendarEvent) => new
+    {
+        calendarEvent.Title,
+        PrimaryCalendar = calendarEvent.PrimaryCalendar.ToString(),
+        Category = calendarEvent.Category.ToString(),
+        BusyStatus = calendarEvent.BusyStatus.ToString(),
+        ReviewStatus = calendarEvent.ReviewStatus.ToString(),
+        Time = new
+        {
+            Date = calendarEvent.Time.Date.ToString("O"),
+            StartTime = calendarEvent.Time.StartTime?.ToString("HH:mm:ss"),
+            EndTime = calendarEvent.Time.EndTime?.ToString("HH:mm:ss"),
+            calendarEvent.Time.IsAllDay
+        },
+        Participants = calendarEvent.Participants.Select(participant => new
+        {
+            PersonId = participant.Person.Id.Value,
+            Role = participant.Role.ToString(),
+            BusyStatus = participant.BusyStatus.ToString()
+        }),
+        Recurrence = calendarEvent.Recurrence?.Frequency.ToString()
+    };
+
     private static bool ContainsValue(IReadOnlyDictionary<string, string>? metadata, string value) =>
         metadata?.Values.Any(candidate => string.Equals(candidate, value, StringComparison.Ordinal)) == true;
 
@@ -914,6 +1114,8 @@ public sealed class CalDavEndpointTests
         public List<EventIntent> Intents { get; } = [];
 
         public List<AuditEntry> Audits { get; } = [];
+
+        public List<ReviewDecision> Decisions { get; } = [];
 
         public Dictionary<string, RecordingCalDavObject> Objects { get; } = new(StringComparer.Ordinal);
 
@@ -928,7 +1130,7 @@ public sealed class CalDavEndpointTests
             return Task.CompletedTask;
         }
 
-        public Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
+        public async Task<CalDavObjectUpsertResult> UpsertCalDavObjectAsync(
             CalDavObjectUpsert upsert,
             CancellationToken cancellationToken)
         {
@@ -936,23 +1138,36 @@ public sealed class CalDavEndpointTests
             Objects.TryGetValue(id, out var current);
             if (!PreconditionsAllowWrite(upsert, current))
             {
-                return Task.FromResult(new CalDavObjectUpsertResult(
+                return new CalDavObjectUpsertResult(
                     CalDavObjectUpsertStatus.PreconditionFailed,
                     current?.IntentId,
-                    current?.ETag));
+                    current?.ETag);
             }
 
             if (current is not null &&
                 string.Equals(current.ContentHash, upsert.ContentHash, StringComparison.Ordinal))
             {
-                return Task.FromResult(new CalDavObjectUpsertResult(
+                return new CalDavObjectUpsertResult(
                     CalDavObjectUpsertStatus.Unchanged,
                     current.IntentId,
-                    current.ETag));
+                    current.ETag);
+            }
+
+            var reviewOutcome = await upsert.ReviewOutcomeFactory(cancellationToken);
+            if (current is not null)
+            {
+                RejectPreviousCalDavReview(current.IntentId, upsert.ObservedAt);
             }
 
             Intents.Add(upsert.Intent);
             Audits.Add(upsert.AuditEntry);
+            Decisions.Add(reviewOutcome.Decision);
+            Audits.Add(reviewOutcome.AuditEntry);
+            if (reviewOutcome.Decision.Event?.ReviewStatus == ReviewStatus.Approved)
+            {
+                ApprovedEvents.Add(reviewOutcome.Decision.Event);
+            }
+
             Objects[id] = new RecordingCalDavObject(
                 id,
                 upsert.CalendarId,
@@ -963,10 +1178,54 @@ public sealed class CalDavEndpointTests
                 current?.CreatedAt ?? upsert.ObservedAt,
                 upsert.ObservedAt);
 
-            return Task.FromResult(new CalDavObjectUpsertResult(
+            return new CalDavObjectUpsertResult(
                 current is null ? CalDavObjectUpsertStatus.Created : CalDavObjectUpsertStatus.Replaced,
                 upsert.Intent.Id,
-                upsert.ETag));
+                upsert.ETag,
+                reviewOutcome.Decision);
+        }
+
+        private void RejectPreviousCalDavReview(
+            EventIntentId intentId,
+            DateTimeOffset observedAt)
+        {
+            var decisionIndex = Decisions.FindIndex(decision =>
+                decision.IntentId == intentId && decision.Status != ReviewStatus.Rejected);
+            if (decisionIndex < 0)
+            {
+                return;
+            }
+
+            var decision = Decisions[decisionIndex];
+            var rejectedEvent = decision.Event is null
+                ? null
+                : decision.Event with { ReviewStatus = ReviewStatus.Rejected };
+            if (decision.Event is not null)
+            {
+                ApprovedEvents.RemoveAll(calendarEvent => calendarEvent.Id == decision.Event.Id);
+            }
+
+            Decisions[decisionIndex] = decision with
+            {
+                Status = ReviewStatus.Rejected,
+                Event = rejectedEvent,
+                DecidedAt = observedAt,
+                DecidedBy = ActorRef.System
+            };
+            Audits.Add(new AuditEntry(
+                AuditEntryId.New(),
+                AuditAction.EventRejected,
+                ActorRef.System,
+                observedAt,
+                "CalDAV Smart Inbox object replaced previous review decision.",
+                decision.IntentId,
+                rejectedEvent?.Id,
+                decision.Id,
+                new Dictionary<string, string>
+                {
+                    ["source"] = CalendarSource.CalDav.ToString(),
+                    ["reason"] = "CalDavObjectReplaced"
+                }));
         }
 
         private static bool PreconditionsAllowWrite(
@@ -1125,4 +1384,35 @@ public sealed class CalDavEndpointTests
         DateTimeOffset UpdatedAt);
 
     private sealed record ApprovedEventQuery(DateOnly From, DateOnly To, VirtualCalendar Calendar);
+
+    private sealed class RecordingNotifier(RecordingCalDavStore store) : ICalendarUpdateNotifier
+    {
+        public List<CalendarUpdateNotification> Published { get; } = [];
+
+        public bool StoreHadPersistedDecisionWhenPublished { get; private set; }
+
+        public Task PublishAsync(
+            IReadOnlyList<CalendarUpdateNotification> notifications,
+            CancellationToken cancellationToken)
+        {
+            StoreHadPersistedDecisionWhenPublished = store.Decisions.Count > 0;
+            Published.AddRange(notifications);
+
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class CountingAiReviewProvider(AiReviewSuggestion? suggestion) : IAiReviewProvider
+    {
+        public int Calls { get; private set; }
+
+        public ValueTask<AiReviewSuggestion?> ReviewAsync(
+            AiReviewRequest request,
+            CancellationToken cancellationToken)
+        {
+            Calls++;
+
+            return ValueTask.FromResult(suggestion);
+        }
+    }
 }
