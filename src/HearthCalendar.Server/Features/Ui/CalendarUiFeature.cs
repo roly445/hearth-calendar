@@ -6,8 +6,8 @@ using FluentValidation;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Server.SignalR;
-using HearthCalendar.Shared.Contracts.Ui;
-using HearthCalendar.Shared.Domain;
+using HearthCalendar.Client.Contracts.Ui;
+using HearthCalendar.Server.Domain;
 using Microsoft.AspNetCore.SignalR;
 
 namespace HearthCalendar.Server.Features.Ui;
@@ -52,10 +52,15 @@ public sealed class GetUpcomingEventsQueryProcessor(IHearthCalendarStore store)
             return QueryResult<UpcomingEventsResult>.Failed();
         }
 
+        if (!CalendarUiContractParsing.TryParseCalendar(request.Calendar, out var calendar))
+        {
+            return QueryResult<UpcomingEventsResult>.Failed();
+        }
+
         var events = await store.QueryApprovedEventsAsync(
             request.From,
             request.To,
-            request.Calendar,
+            calendar,
             cancellationToken);
         var items = events.Select(CalendarUiMapping.ToCalendarEventSummary).ToArray();
 
@@ -81,9 +86,9 @@ public sealed class SubmitWebEventIntentCommandHandler(
     ICalendarUpdateNotifier notifier,
     IEnumerable<IValidator<SubmitWebEventIntentCommand>> validators,
     ILogger<SubmitWebEventIntentCommandHandler> logger)
-    : CommandHandler<SubmitWebEventIntentCommand, ReviewActionResult>(validators, logger)
+    : CommandHandler<SubmitWebEventIntentCommand, SubmitWebEventIntentResult>(validators, logger)
 {
-    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+    protected override async Task<CommandResult<SubmitWebEventIntentResult>> HandleInternal(
         SubmitWebEventIntentCommand request,
         CancellationToken cancellationToken)
     {
@@ -112,16 +117,16 @@ public sealed class SubmitWebEventIntentCommandHandler(
             CalendarUiNotifications.For(outcome.Decision),
             cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(CalendarUiMapping.ToReviewActionResult(outcome.Decision));
+        return CommandResult<SubmitWebEventIntentResult>.Succeeded(CalendarUiMapping.ToSubmitWebEventIntentResult(outcome.Decision));
     }
 }
 
 public sealed class ApproveReviewItemCommandHandler(
     IHearthCalendarStore store,
     ICalendarUpdateNotifier notifier)
-    : ICommandHandler<ApproveReviewItemCommand, ReviewActionResult>
+    : ICommandHandler<ApproveReviewItemCommand, ApproveReviewItemResult>
 {
-    public async ValueTask<CommandResult<ReviewActionResult>> Handle(
+    public async ValueTask<CommandResult<ApproveReviewItemResult>> Handle(
         ApproveReviewItemCommand request,
         CancellationToken cancellationToken)
     {
@@ -130,19 +135,19 @@ public sealed class ApproveReviewItemCommandHandler(
             cancellationToken);
         if (decision is null)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<ApproveReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_NOT_FOUND", "The staged item was not found."));
         }
 
         if (decision.Status != ReviewStatus.Staged)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<ApproveReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_NOT_STAGED", "Only staged review items can be changed."));
         }
 
         if (decision.Event is null)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<ApproveReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_HAS_NO_CANDIDATE", "The staged item cannot be approved without an event candidate."));
         }
 
@@ -161,21 +166,21 @@ public sealed class ApproveReviewItemCommandHandler(
         }
         catch (StaleReviewDecisionException)
         {
-            return CommandResult<ReviewActionResult>.Failed(CalendarUiErrors.StaleReviewItemError());
+            return CommandResult<ApproveReviewItemResult>.Failed(CalendarUiErrors.StaleReviewItemError());
         }
 
         await notifier.PublishAsync(CalendarUiNotifications.For(approvedDecision), cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(CalendarUiMapping.ToReviewActionResult(approvedDecision));
+        return CommandResult<ApproveReviewItemResult>.Succeeded(CalendarUiMapping.ToApproveReviewItemResult(approvedDecision));
     }
 }
 
 public sealed class RejectReviewItemCommandHandler(
     IHearthCalendarStore store,
     ICalendarUpdateNotifier notifier)
-    : ICommandHandler<RejectReviewItemCommand, ReviewActionResult>
+    : ICommandHandler<RejectReviewItemCommand, RejectReviewItemResult>
 {
-    public async ValueTask<CommandResult<ReviewActionResult>> Handle(
+    public async ValueTask<CommandResult<RejectReviewItemResult>> Handle(
         RejectReviewItemCommand request,
         CancellationToken cancellationToken)
     {
@@ -184,13 +189,13 @@ public sealed class RejectReviewItemCommandHandler(
             cancellationToken);
         if (decision is null)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<RejectReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_NOT_FOUND", "The staged item was not found."));
         }
 
         if (decision.Status != ReviewStatus.Staged)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<RejectReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_NOT_STAGED", "Only staged review items can be changed."));
         }
 
@@ -209,12 +214,12 @@ public sealed class RejectReviewItemCommandHandler(
         }
         catch (StaleReviewDecisionException)
         {
-            return CommandResult<ReviewActionResult>.Failed(CalendarUiErrors.StaleReviewItemError());
+            return CommandResult<RejectReviewItemResult>.Failed(CalendarUiErrors.StaleReviewItemError());
         }
 
         await notifier.PublishAsync(CalendarUiNotifications.For(rejectedDecision), cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(CalendarUiMapping.ToReviewActionResult(rejectedDecision));
+        return CommandResult<RejectReviewItemResult>.Succeeded(CalendarUiMapping.ToRejectReviewItemResult(rejectedDecision));
     }
 }
 
@@ -234,9 +239,9 @@ public sealed class EditReviewItemCommandHandler(
     ICalendarUpdateNotifier notifier,
     IEnumerable<IValidator<EditReviewItemCommand>> validators,
     ILogger<EditReviewItemCommandHandler> logger)
-    : CommandHandler<EditReviewItemCommand, ReviewActionResult>(validators, logger)
+    : CommandHandler<EditReviewItemCommand, EditReviewItemResult>(validators, logger)
 {
-    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+    protected override async Task<CommandResult<EditReviewItemResult>> HandleInternal(
         EditReviewItemCommand request,
         CancellationToken cancellationToken)
     {
@@ -245,20 +250,20 @@ public sealed class EditReviewItemCommandHandler(
             cancellationToken);
         if (originalDecision is null)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<EditReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_NOT_FOUND", "The staged item was not found."));
         }
 
         if (originalDecision.Status != ReviewStatus.Staged)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<EditReviewItemResult>.Failed(
                 new BluQubeErrorData("REVIEW_ITEM_NOT_STAGED", "Only staged review items can be changed."));
         }
 
         var originalIntent = await store.LoadIntentAsync(originalDecision.IntentId, cancellationToken);
         if (originalIntent is null)
         {
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<EditReviewItemResult>.Failed(
                 new BluQubeErrorData("INTENT_NOT_FOUND", "The original intent was not found."));
         }
 
@@ -287,12 +292,12 @@ public sealed class EditReviewItemCommandHandler(
         }
         catch (StaleReviewDecisionException)
         {
-            return CommandResult<ReviewActionResult>.Failed(CalendarUiErrors.StaleReviewItemError());
+            return CommandResult<EditReviewItemResult>.Failed(CalendarUiErrors.StaleReviewItemError());
         }
 
         await notifier.PublishAsync(CalendarUiNotifications.For(outcome.Decision), cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(CalendarUiMapping.ToReviewActionResult(outcome.Decision));
+        return CommandResult<EditReviewItemResult>.Succeeded(CalendarUiMapping.ToEditReviewItemResult(outcome.Decision));
     }
 }
 
@@ -311,12 +316,17 @@ public sealed class DeleteEventCommandHandler(
     ICalendarUpdateNotifier notifier,
     IEnumerable<IValidator<DeleteEventCommand>> validators,
     ILogger<DeleteEventCommandHandler> logger)
-    : CommandHandler<DeleteEventCommand, ReviewActionResult>(validators, logger)
+    : CommandHandler<DeleteEventCommand, DeleteEventResult>(validators, logger)
 {
-    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+    protected override async Task<CommandResult<DeleteEventResult>> HandleInternal(
         DeleteEventCommand request,
         CancellationToken cancellationToken)
     {
+        if (!CalendarUiContractParsing.TryParseReviewSourceMode(request.SourceMode, out var sourceMode))
+        {
+            return CommandResult<DeleteEventResult>.Failed(CalendarUiErrors.InvalidSourceModeError());
+        }
+
         var candidates = await store.QueryApprovedEventsAsync(
             request.Date,
             request.Date,
@@ -332,10 +342,11 @@ public sealed class DeleteEventCommandHandler(
         if (plan.Status != MutationPlanStatus.Approved || plan.MatchedEvent is null)
         {
             var nonApplied = await CalendarUiMutationSupport.StoreNonAppliedMutationAsync(
+                CalendarUiMapping.ToDeleteEventResult,
                 store,
                 notifier,
                 request.RawText.Trim(),
-                request.SourceMode,
+                sourceMode,
                 plan.Status,
                 plan.Reasons,
                 [],
@@ -343,7 +354,7 @@ public sealed class DeleteEventCommandHandler(
                 AuditAction.EventDeleteRejected,
                 cancellationToken);
 
-            return nonApplied ?? CommandResult<ReviewActionResult>.Failed(
+            return nonApplied ?? CommandResult<DeleteEventResult>.Failed(
                 new BluQubeErrorData(
                     "DELETE_NOT_EXACT_MATCH",
                     "Delete was not applied because the request did not exactly match one approved event."));
@@ -363,7 +374,7 @@ public sealed class DeleteEventCommandHandler(
                     [new DecisionReason(DecisionReasonCode.AmbiguousEventMatch, "The approved event changed before delete could be applied.")]),
                 cancellationToken);
 
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<DeleteEventResult>.Failed(
                 new BluQubeErrorData("DELETE_STALE_MATCH", "Delete was not applied because the approved event changed before it could be removed."));
         }
 
@@ -371,8 +382,8 @@ public sealed class DeleteEventCommandHandler(
             [new(CalendarUiNotifications.CalendarEventsChanged, plan.MatchedEvent.Id.Value, DateTimeOffset.UtcNow)],
             cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(
-            new ReviewActionResult(Guid.Empty, "Deleted", "Event deleted.", plan.MatchedEvent.Id.Value));
+        return CommandResult<DeleteEventResult>.Succeeded(
+            new DeleteEventResult(Guid.Empty, "Deleted", "Event deleted.", plan.MatchedEvent.Id.Value));
     }
 }
 
@@ -391,12 +402,17 @@ public sealed class RescheduleEventCommandHandler(
     ICalendarUpdateNotifier notifier,
     IEnumerable<IValidator<RescheduleEventCommand>> validators,
     ILogger<RescheduleEventCommandHandler> logger)
-    : CommandHandler<RescheduleEventCommand, ReviewActionResult>(validators, logger)
+    : CommandHandler<RescheduleEventCommand, RescheduleEventResult>(validators, logger)
 {
-    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+    protected override async Task<CommandResult<RescheduleEventResult>> HandleInternal(
         RescheduleEventCommand request,
         CancellationToken cancellationToken)
     {
+        if (!CalendarUiContractParsing.TryParseReviewSourceMode(request.SourceMode, out var sourceMode))
+        {
+            return CommandResult<RescheduleEventResult>.Failed(CalendarUiErrors.InvalidSourceModeError());
+        }
+
         var currentCandidates = await store.QueryApprovedEventsAsync(
             request.CurrentDate,
             request.CurrentDate,
@@ -421,10 +437,11 @@ public sealed class RescheduleEventCommandHandler(
         if (plan.Status != MutationPlanStatus.Approved || plan.MatchedEvent is null || plan.RescheduledEvent is null)
         {
             var nonApplied = await CalendarUiMutationSupport.StoreNonAppliedMutationAsync(
+                CalendarUiMapping.ToRescheduleEventResult,
                 store,
                 notifier,
                 request.RawText.Trim(),
-                request.SourceMode,
+                sourceMode,
                 plan.Status,
                 plan.Reasons,
                 plan.Clashes,
@@ -432,7 +449,7 @@ public sealed class RescheduleEventCommandHandler(
                 AuditAction.EventRescheduleRejected,
                 cancellationToken);
 
-            return nonApplied ?? CommandResult<ReviewActionResult>.Failed(
+            return nonApplied ?? CommandResult<RescheduleEventResult>.Failed(
                 new BluQubeErrorData(
                     "RESCHEDULE_NOT_CONFIDENT_MATCH",
                     "Reschedule was not applied because the request did not confidently match one safe approved event."));
@@ -456,7 +473,7 @@ public sealed class RescheduleEventCommandHandler(
                     [new DecisionReason(DecisionReasonCode.AmbiguousEventMatch, "The approved event changed before reschedule could be applied.")]),
                 cancellationToken);
 
-            return CommandResult<ReviewActionResult>.Failed(
+            return CommandResult<RescheduleEventResult>.Failed(
                 new BluQubeErrorData("RESCHEDULE_STALE_MATCH", "Reschedule was not applied because the approved event changed before it could be updated."));
         }
 
@@ -464,8 +481,8 @@ public sealed class RescheduleEventCommandHandler(
             [new(CalendarUiNotifications.CalendarEventsChanged, plan.RescheduledEvent.Id.Value, DateTimeOffset.UtcNow)],
             cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(
-            new ReviewActionResult(Guid.Empty, "Rescheduled", "Event rescheduled.", plan.RescheduledEvent.Id.Value));
+        return CommandResult<RescheduleEventResult>.Succeeded(
+            new RescheduleEventResult(Guid.Empty, "Rescheduled", "Event rescheduled.", plan.RescheduledEvent.Id.Value));
     }
 
     private static DateOnly Min(DateOnly left, DateOnly right) =>
@@ -478,7 +495,8 @@ public sealed class RescheduleEventCommandHandler(
 
 public static class CalendarUiMutationSupport
 {
-    public static async Task<CommandResult<ReviewActionResult>?> StoreNonAppliedMutationAsync(
+    public static async Task<CommandResult<TResult>?> StoreNonAppliedMutationAsync<TResult>(
+        Func<ReviewDecision, TResult> mapResult,
         IHearthCalendarStore store,
         ICalendarUpdateNotifier notifier,
         string rawText,
@@ -489,6 +507,7 @@ public static class CalendarUiMutationSupport
         CalendarEvent? candidate,
         AuditAction rejectedAction,
         CancellationToken cancellationToken)
+        where TResult : ICommandResult, IReviewActionResult
     {
         var submittedAt = DateTimeOffset.UtcNow;
         var intent = new EventIntent(
@@ -517,7 +536,7 @@ public static class CalendarUiMutationSupport
             await store.StoreReviewOutcomeAsync(intent, outcome, cancellationToken);
             await notifier.PublishAsync(CalendarUiNotifications.For(decision), cancellationToken);
 
-            return CommandResult<ReviewActionResult>.Succeeded(CalendarUiMapping.ToReviewActionResult(decision));
+            return CommandResult<TResult>.Succeeded(mapResult(decision));
         }
 
         await store.StoreIntentWithAuditAsync(
@@ -614,7 +633,42 @@ public static class CalendarUiMapping
             calendarEvent.BusyStatus.ToString(),
             calendarEvent.Participants.Select(participant => participant.Person.Id.Value).ToArray());
 
-    public static ReviewActionResult ToReviewActionResult(ReviewDecision decision) =>
+    public static SubmitWebEventIntentResult ToSubmitWebEventIntentResult(ReviewDecision decision) =>
+        new(
+            decision.Id.Value,
+            decision.Status.ToString(),
+            $"Review item {decision.Status}.",
+            decision.Event?.Id.Value);
+
+    public static ApproveReviewItemResult ToApproveReviewItemResult(ReviewDecision decision) =>
+        new(
+            decision.Id.Value,
+            decision.Status.ToString(),
+            $"Review item {decision.Status}.",
+            decision.Event?.Id.Value);
+
+    public static RejectReviewItemResult ToRejectReviewItemResult(ReviewDecision decision) =>
+        new(
+            decision.Id.Value,
+            decision.Status.ToString(),
+            $"Review item {decision.Status}.",
+            decision.Event?.Id.Value);
+
+    public static EditReviewItemResult ToEditReviewItemResult(ReviewDecision decision) =>
+        new(
+            decision.Id.Value,
+            decision.Status.ToString(),
+            $"Review item {decision.Status}.",
+            decision.Event?.Id.Value);
+
+    public static DeleteEventResult ToDeleteEventResult(ReviewDecision decision) =>
+        new(
+            decision.Id.Value,
+            decision.Status.ToString(),
+            $"Review item {decision.Status}.",
+            decision.Event?.Id.Value);
+
+    public static RescheduleEventResult ToRescheduleEventResult(ReviewDecision decision) =>
         new(
             decision.Id.Value,
             decision.Status.ToString(),
@@ -626,6 +680,18 @@ public static class CalendarUiErrors
 {
     public static BluQubeErrorData StaleReviewItemError() =>
         new("REVIEW_ITEM_NOT_STAGED", "Only staged review items can be changed.");
+
+    public static BluQubeErrorData InvalidSourceModeError() =>
+        new("INVALID_SOURCE_MODE", "The source mode is not supported.");
+}
+
+public static class CalendarUiContractParsing
+{
+    public static bool TryParseCalendar(string value, out VirtualCalendar calendar) =>
+        Enum.TryParse(value, ignoreCase: true, out calendar);
+
+    public static bool TryParseReviewSourceMode(string value, out ReviewSourceMode sourceMode) =>
+        Enum.TryParse(value, ignoreCase: true, out sourceMode);
 }
 
 public static class CalendarUiAudits

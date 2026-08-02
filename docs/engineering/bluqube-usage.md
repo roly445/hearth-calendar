@@ -32,34 +32,30 @@ Expected project split:
 
 ```text
 src/
-  HearthCalendar.Shared/
+  HearthCalendar.Client/
     Contracts/
+      Ui/
+    Features/
       Review/
       Events/
       Auth/
-      Feeds/
 
   HearthCalendar.Server/
+    Domain/
     Features/
       Review/
       Events/
       Auth/
       Feeds/
     Infrastructure/
-
-  HearthCalendar.Client/
-    Features/
-      Review/
-      Events/
-      Auth/
 ```
 
 Rules:
 
-- Shared project contains command records, query records, result records, and serializable DTOs.
-- Server project contains handlers, processors, validators, authorizers, Marten access, ASP.NET dependencies, and domain services.
-- Client project contains Blazor components, UI state, generated requesters, and calls through `ICommandRunner` / `IQueryRunner`.
+- Client project contains command records, query records, result records, serializable DTOs, Blazor components, UI state, generated requesters, and calls through `ICommandRunner` / `IQueryRunner`.
+- Server project contains the domain model, handlers, processors, validators, authorizers, Marten access, ASP.NET dependencies, and domain services.
 - Do not put Marten, ASP.NET middleware, handlers, processors, or validators in the WASM client.
+- Do not make client-owned BluQube contracts depend on server domain types. Use simple DTO values at the transport boundary and map them on the server.
 - Do not add MediatR or another mediator package for UI command/query flow.
 
 ## Server Setup
@@ -139,12 +135,12 @@ Implementation notes:
 
 Commands modify state.
 
-Command records live in `HearthCalendar.Shared`.
+Command records live in `HearthCalendar.Client`.
 
 ```csharp
 [BluQubeCommand(Path = "commands/review/approve")]
 public sealed record ApproveReviewItemCommand(Guid ReviewDecisionId)
-    : ICommand<ReviewActionResult>;
+    : ICommand<ApproveReviewItemResult>;
 ```
 
 Handlers live on the server.
@@ -154,9 +150,9 @@ public sealed class ApproveReviewItemCommandHandler(
     ReviewWorkflow workflow,
     IEnumerable<IValidator<ApproveReviewItemCommand>> validators,
     ILogger<ApproveReviewItemCommandHandler> logger)
-    : CommandHandler<ApproveReviewItemCommand, ReviewActionResult>(validators, logger)
+    : CommandHandler<ApproveReviewItemCommand, ApproveReviewItemResult>(validators, logger)
 {
-    protected override async Task<CommandResult<ReviewActionResult>> HandleInternal(
+    protected override async Task<CommandResult<ApproveReviewItemResult>> HandleInternal(
         ApproveReviewItemCommand request,
         CancellationToken cancellationToken)
     {
@@ -164,7 +160,7 @@ public sealed class ApproveReviewItemCommandHandler(
             request.ReviewDecisionId,
             cancellationToken);
 
-        return CommandResult<ReviewActionResult>.Succeeded(result);
+        return CommandResult<ApproveReviewItemResult>.Succeeded(result);
     }
 }
 ```
@@ -181,7 +177,7 @@ Rules:
 
 Queries read state.
 
-Query records live in `HearthCalendar.Shared`.
+Query records live in `HearthCalendar.Client`.
 
 ```csharp
 [BluQubeQuery(Path = "queries/review/queue", Method = "GET")]
@@ -356,12 +352,13 @@ Authorization returns unexpected failure:
 JSON serialization errors:
 
 - confirm `options.AddBluQubeJsonConverters()` is configured on the server
-- keep shared DTOs simple and serializable
+- keep client-owned DTOs simple and serializable
 - avoid leaking domain-only types that are awkward for WASM serialization
 
 ## Acceptance Criteria
 
-- Commands, queries, and result records are shared between client and server.
+- Commands, queries, result records, and UI DTOs live in the client project and are visible to the server for handlers/processors.
+- Client-owned BluQube contracts do not reference server domain types.
 - New command/query behaviour follows red/green/refactor unless explicitly impractical.
 - Handlers, processors, validators, and authorizers live on the server.
 - Client components use `ICommandRunner` and `IQueryRunner`.

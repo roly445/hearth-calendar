@@ -1,8 +1,43 @@
 <Solution>
+  <Folder Name="/._/">
+    <File Path=".gitattributes" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path="global.json" />
+    <File Path="LICENSE.md" />
+    <File Path="package-lock.json" />
+    <File Path="package.json" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/.github/" />
+  <Folder Name="/.github/workflows/">
+    <File Path=".github/workflows/ci.yml" />
+  </Folder>
+  <Folder Name="/docs/" />
+  <Folder Name="/docs/domain/">
+    <File Path="docs/domain/auth-stack.md" />
+    <File Path="docs/domain/caldav-spike.md" />
+    <File Path="docs/domain/domain-model.md" />
+    <File Path="docs/domain/event-model.md" />
+    <File Path="docs/domain/product-boundaries-and-roadmap.md" />
+    <File Path="docs/domain/ui-stack.md" />
+  </Folder>
+  <Folder Name="/docs/engineering/">
+    <File Path="docs/engineering/bluqube-usage.md" />
+    <File Path="docs/engineering/ci.md" />
+    <File Path="docs/engineering/dotnet-app-defaults-compliance.md" />
+    <File Path="docs/engineering/public-repo-privacy.md" />
+  </Folder>
+  <Folder Name="/docs/planning/">
+    <File Path="docs/planning/github-issues.md" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/HearthCalendar.Client/HearthCalendar.Client.csproj" />
     <Project Path="src/HearthCalendar.Server/HearthCalendar.Server.csproj" />
-    <Project Path="src/HearthCalendar.Shared/HearthCalendar.Shared.csproj" />
+  </Folder>
+  <Folder Name="/scripts/">
+    <File Path="scripts/build-client-assets.mjs" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/HearthCalendar.Tests/HearthCalendar.Tests.csproj" />

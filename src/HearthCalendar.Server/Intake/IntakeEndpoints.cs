@@ -1,7 +1,7 @@
 using System.Security.Claims;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Persistence;
-using HearthCalendar.Shared.Domain;
+using HearthCalendar.Server.Domain;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HearthCalendar.Server.Intake;

@@ -20,8 +20,10 @@
     <ServiceWorker Include="wwwroot\service-worker.js" PublishedContent="wwwroot\service-worker.published.js" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\HearthCalendar.Shared\HearthCalendar.Shared.csproj" />
-  </ItemGroup>
+  <Target Name="BuildClientAssets" BeforeTargets="ResolveCurrentProjectStaticWebAssetsInputs">
+    <Error Condition="!Exists('$(MSBuildProjectDirectory)\..\..\node_modules\sass') Or !Exists('$(MSBuildProjectDirectory)\..\..\node_modules\typescript')"
+           Text="Client asset dependencies are missing. Run 'npm ci' from the repository root before building HearthCalendar.Client." />
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)\..\.." Command="npm run build:assets" />
+  </Target>
 
 </Project>

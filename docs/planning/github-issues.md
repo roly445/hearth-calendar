@@ -49,7 +49,7 @@ Create the initial .NET solution skeleton for Hearth Calendar.
 - Hosted Blazor WebAssembly solution shape.
 - ASP.NET Core server project.
 - Blazor WASM client project.
-- Shared project for BluQube contracts and DTOs.
+- Client-owned BluQube contracts and DTOs.
 - Test project.
 - Central package management.
 - Warnings as errors.
@@ -58,7 +58,7 @@ Create the initial .NET solution skeleton for Hearth Calendar.
 
 ## Acceptance Criteria
 
-- Solution contains `HearthCalendar.Server`, `HearthCalendar.Client`, `HearthCalendar.Shared`, and tests.
+- Solution contains `HearthCalendar.Server`, `HearthCalendar.Client`, and tests.
 - `dotnet build` passes with warnings as errors.
 - Tests run from the command line.
 - CI runs on pull requests targeting `main`.
@@ -253,7 +253,7 @@ Build the first useful web UI using Blazor WASM and BluQube.
 ## Acceptance Criteria
 
 - Blazor WASM client uses `ICommandRunner` and `IQueryRunner`.
-- Shared commands/queries/results live in shared project.
+- BluQube commands/queries/results live in the client project.
 - Handlers/processors/validators/authorizers live on the server.
 - Review queue shows staged items, reasons, suggestions, and clashes.
 - User can approve, edit, or reject staged items.

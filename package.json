@@ -1,0 +1,14 @@
+{
+  "name": "hearth-calendar",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:assets": "node ./scripts/build-client-assets.mjs",
+    "test:assets": "npm run build:assets && node --test tests/HearthCalendar.Client.Assets/*.test.mjs",
+    "watch:assets": "node ./scripts/build-client-assets.mjs --watch"
+  },
+  "devDependencies": {
+    "sass": "1.89.2",
+    "typescript": "5.8.3"
+  }
+}

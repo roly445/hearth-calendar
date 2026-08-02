@@ -19,7 +19,8 @@ The selected stack is:
 - BluQube commands and queries are the default path for client/server request-response work.
 - SignalR broadcasts state-change notifications; it does not become a second command API.
 - Offline writes must be constrained to safe queued intent submission unless a later conflict model supports more.
-- Shared request/result contracts should stay small and serializable.
+- Client-owned request/result contracts should stay small and serializable.
+- Client-owned request/result contracts must not reference server domain types.
 - Server-only dependencies such as Marten, ASP.NET middleware, handlers, processors, validators, and authorizers stay off the WASM client.
 
 ## Hosted WASM Shape
@@ -39,6 +40,7 @@ Recommended project shape:
 ```text
 src/
   HearthCalendar.Server/
+    Domain/
     Features/
       Intake/
       Review/
@@ -51,6 +53,8 @@ src/
     Program.cs
 
   HearthCalendar.Client/
+    Contracts/
+      Ui/
     Features/
       Review/
       Events/
@@ -58,26 +62,15 @@ src/
       Auth/
     Program.cs
 
-  HearthCalendar.Shared/
-    Contracts/
-      Intake/
-      Review/
-      Events/
-      Feeds/
-    Models/
-      CalendarEventSummary.cs
-      ReviewQueueItem.cs
-      ValidationError.cs
-
 tests/
   HearthCalendar.Tests/
 ```
 
 The split is practical rather than ceremonial:
 
-- `Shared` contains BluQube commands, queries, result records, and DTOs used by both sides.
-- `Server` contains handlers, processors, validators, authorizers, Marten access, domain services, SignalR hubs, and integration endpoints.
-- `Client` contains Blazor components, browser-side services, route pages, and UI state.
+- `Client` contains BluQube commands, queries, result records, DTOs, Blazor components, browser-side services, route pages, and UI state.
+- `Server` contains the domain model, handlers, processors, validators, authorizers, Marten access, domain services, SignalR hubs, and integration endpoints.
+- Server handlers/processors translate client DTO values into server domain concepts at the boundary.
 
 ## BluQube Boundary
 
@@ -168,10 +161,10 @@ Commands modify state and should usually return enough data for the UI to update
 
 | Command | Result | Notes |
 | --- | --- | --- |
-| `SubmitWebEventIntentCommand` | `SubmitEventIntentResult` | Sends manual UI entry through the same review pipeline as other sources. |
-| `ApproveReviewItemCommand` | `ReviewActionResult` | Creates or updates approved event state. |
-| `RejectReviewItemCommand` | `ReviewActionResult` | Rejects staged item and writes audit entry. |
-| `EditReviewItemCommand` | `ReviewActionResult` | Applies edits, reruns validation/clash checks. |
+| `SubmitWebEventIntentCommand` | `SubmitWebEventIntentResult` | Sends manual UI entry through the same review pipeline as other sources. |
+| `ApproveReviewItemCommand` | `ApproveReviewItemResult` | Creates or updates approved event state. |
+| `RejectReviewItemCommand` | `RejectReviewItemResult` | Rejects staged item and writes audit entry. |
+| `EditReviewItemCommand` | `EditReviewItemResult` | Applies edits, reruns validation/clash checks. |
 | `DeleteEventCommand` | `DeleteEventResult` | Requires exact-match domain policy. |
 | `RescheduleEventCommand` | `RescheduleEventResult` | Updates existing event; must avoid duplicate creation. |
 | `CreateClientCredentialCommand` | `CreateCredentialResult` | Returns raw secret once. |
@@ -179,12 +172,12 @@ Commands modify state and should usually return enough data for the UI to update
 | `RevokeClientCredentialCommand` | `RevokeCredentialResult` | Revokes without deleting audit history. |
 | `CreateFeedTokenCommand` | `CreateFeedTokenResult` | Returns raw feed token once. |
 
-Example shared command:
+Example client-owned command:
 
 ```csharp
 [BluQubeCommand(Path = "commands/review/approve")]
 public sealed record ApproveReviewItemCommand(Guid ReviewDecisionId)
-    : ICommand<ReviewActionResult>;
+    : ICommand<ApproveReviewItemResult>;
 ```
 
 ## Queries
@@ -200,7 +193,7 @@ Queries read state and should return screen-focused DTOs.
 | `GetCredentialListQuery` | `CredentialListResult` | Credential metadata only, never raw tokens. |
 | `GetFeedTokenListQuery` | `FeedTokenListResult` | Feed token metadata only. |
 
-Example shared query:
+Example client-owned query:
 
 ```csharp
 [BluQubeQuery(Path = "queries/review/queue", Method = "GET")]
@@ -275,6 +268,14 @@ They should not include:
 ## PWA And Offline Caching
 
 The Blazor WASM client should be installable as a PWA.
+
+Authored browser assets live outside generated static output:
+
+- `src/HearthCalendar.Client/Assets/Styles/*.scss` for SCSS
+- `src/HearthCalendar.Client/Assets/Scripts/*.ts` for TypeScript browser modules and service workers
+- `src/HearthCalendar.Client/Assets/Pwa/` for the Blazor host page, manifest, and icons
+
+`npm run build:assets` compiles SCSS and TypeScript, then copies PWA assets into `src/HearthCalendar.Client/wwwroot`. The Blazor client project runs this target before static web assets are resolved, so `dotnet build` receives a generated `wwwroot` without requiring that folder to be committed. Run `npm ci` from the repository root after cloning or when Node dependencies change.
 
 Offline support has two layers:
 
@@ -433,7 +434,8 @@ All of these still call the same server-side domain services and persist to the 
 
 - Blazor WASM client uses BluQube command/query runners for web UI server calls.
 - Blazor WASM client is PWA-ready with app shell caching.
-- Shared BluQube request/result records live in a shared project.
+- BluQube request/result records and UI DTOs live in the client project.
+- Client-owned BluQube contracts do not reference server domain types.
 - BluQube handlers, processors, validators, authorizers, and Marten access live on the server.
 - BluQube authorization requires authorization by default.
 - SignalR is used for push notifications after persisted changes.

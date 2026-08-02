@@ -1,5 +1,5 @@
 using System.Text.Json;
-using HearthCalendar.Shared.Contracts.Ui;
+using HearthCalendar.Client.Contracts.Ui;
 using Microsoft.JSInterop;
 
 namespace HearthCalendar.Client.Services;
