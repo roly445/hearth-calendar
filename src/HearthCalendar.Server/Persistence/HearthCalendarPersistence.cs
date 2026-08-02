@@ -54,6 +54,11 @@ public interface IHearthCalendarStore
         VirtualCalendar calendar,
         CancellationToken cancellationToken);
 
+    Task<CalendarEvent?> LoadApprovedEventAsync(
+        CalendarEventId id,
+        VirtualCalendar calendar,
+        CancellationToken cancellationToken);
+
     Task<IReadOnlyList<ReviewDecision>> QueryReviewQueueAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<AuditEntry>> QueryAuditEntriesAsync(CancellationToken cancellationToken);
@@ -418,6 +423,22 @@ public sealed class MartenHearthCalendarStore(IDocumentSession session) : IHeart
         var events = documents.Select(document => document.ToDomain()).ToArray();
 
         return VirtualCalendarViews.ForCalendar(calendar, events);
+    }
+
+    public async Task<CalendarEvent?> LoadApprovedEventAsync(
+        CalendarEventId id,
+        VirtualCalendar calendar,
+        CancellationToken cancellationToken)
+    {
+        var document = await session.LoadAsync<CalendarEventDocument>(id.Value, cancellationToken);
+        if (document is null || document.ReviewStatus != nameof(ReviewStatus.Approved))
+        {
+            return null;
+        }
+
+        return VirtualCalendarViews
+            .ForCalendar(calendar, [document.ToDomain()])
+            .SingleOrDefault();
     }
 
     public async Task<IReadOnlyList<ReviewDecision>> QueryReviewQueueAsync(CancellationToken cancellationToken)

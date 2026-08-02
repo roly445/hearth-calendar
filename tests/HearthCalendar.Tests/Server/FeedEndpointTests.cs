@@ -290,6 +290,12 @@ public sealed class FeedEndpointTests
                 .ToArray());
         }
 
+        public Task<CalendarEvent?> LoadApprovedEventAsync(
+            CalendarEventId id,
+            VirtualCalendar calendar,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<IReadOnlyList<ReviewDecision>> QueryReviewQueueAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

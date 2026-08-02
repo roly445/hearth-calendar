@@ -22,8 +22,8 @@ The minimum operations to validate with OneCalendar and DAVx5 are:
 | `PROPFIND` depth `1` | `/caldav/calendars/` | Discover available calendars. | Implemented. |
 | `PROPFIND` depth `0/1` | `/caldav/calendars/smart-inbox/` | Discover writable Smart Inbox metadata. | Implemented. |
 | `PUT` | `/caldav/calendars/smart-inbox/{uid}.ics` | Submit a VEVENT into intake/review. | Implemented with idempotent metadata. |
-| `GET` | `/caldav/calendars/smart-inbox/{uid}.ics` | Let clients confirm a stored object. | Planned next. |
-| `REPORT calendar-query` | `/caldav/calendars/{calendar}/` | Sync approved events for read-only calendars. | Planned next. |
+| `GET` | `/caldav/calendars/{calendar}/{eventId}.ics` | Read one approved event from a read-only virtual calendar. | Implemented for virtual calendars. |
+| `REPORT calendar-query` | `/caldav/calendars/{calendar}/` | Sync approved events for read-only calendars. | Implemented for virtual calendars with date-range filtering. |
 | `DELETE` | `/caldav/calendars/smart-inbox/{uid}.ics` | Request a delete through safe mutation policy. | Later phase. |
 
 ## Calendar Model
@@ -51,7 +51,9 @@ Authorization: Basic base64(client-name:app-password)
 Credentials produce:
 
 - token kind: `caldav`
+- optional read scope: `caldav:read`
 - write scope: `caldav:write`
+- readable calendar claims for approved virtual calendars
 - writable calendar claim: `smart-inbox`
 
 CalDAV credentials are intentionally separate from:
@@ -61,6 +63,8 @@ CalDAV credentials are intentionally separate from:
 - read-only feed bearer/query tokens
 
 Raw app passwords must never be stored or written to audit metadata. Configuration and future persisted credential documents store hashes only.
+
+Read credentials can be scoped to approved virtual calendars independently from writable Smart Inbox credentials. Feed bearer/query tokens, intake bearer tokens, and admin cookie/session credentials cannot use the CalDAV protocol surface.
 
 ## Implemented Prototype
 
@@ -96,12 +100,21 @@ Policy:
 - The current metadata row links to the latest intent for that URI.
 - Raw app passwords, bearer tokens, and raw ICS content are not persisted in the CalDAV object metadata.
 
+## Read-Only Virtual Calendar Projection
+
+`GET /caldav/calendars/{calendar}/{eventId}.ics` returns a single approved event for the requested virtual calendar when the authenticated CalDAV credential has that calendar in its readable calendar claims. The `{eventId}` is the app-owned approved event id and maps to the existing feed UID shape.
+
+`REPORT calendar-query` supports `C:time-range` with `yyyyMMddTHHmmssZ` bounds. The endpoint treats the CalDAV `end` bound as exclusive when converting to the app's `DateOnly` query. Missing or malformed ranges fall back to a broad compatibility window.
+
+Both read paths reuse the same approved-event projection and ICS output rules as feeds:
+
+- staged and rejected events are excluded
+- birthday and anniversary reference events remain transparent/free
+- all-day events are emitted as `VALUE=DATE` rather than midnight date-times
+- read-only virtual calendars reject write attempts without exposing event details
+
 ## Next Implementation Slice
 
-The next CalDAV PR should add enough read/query behaviour for real clients:
-
-1. `GET` for Smart Inbox objects accepted by the current process or persisted as CalDAV object metadata.
-2. `REPORT calendar-query` for read-only virtual calendars backed by approved-event queries.
-3. Compatibility notes from manual DAVx5 and OneCalendar setup attempts.
+The next CalDAV PR should connect approved Smart Inbox submissions into the review pipeline or add a compatibility spike against DAVx5 and OneCalendar.
 
 Full CalDAV recurrence, attendee handling, sync tokens, timezone components, and client-driven deletes/reschedules should remain explicit follow-up work.

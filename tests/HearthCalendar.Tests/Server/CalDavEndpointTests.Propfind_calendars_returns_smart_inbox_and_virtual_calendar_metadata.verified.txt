@@ -1,4 +1,4 @@
-[
+﻿[
   {
     Href: /caldav/calendars/adult-a/,
     Status: HTTP/1.1 200 OK,
@@ -11,9 +11,6 @@
     ],
     Components: [
       VEVENT
-    ],
-    Privileges: [
-      read
     ]
   },
   {
@@ -28,9 +25,6 @@
     ],
     Components: [
       VEVENT
-    ],
-    Privileges: [
-      read
     ]
   },
   {
@@ -45,9 +39,6 @@
     ],
     Components: [
       VEVENT
-    ],
-    Privileges: [
-      read
     ]
   },
   {
@@ -62,9 +53,6 @@
     ],
     Components: [
       VEVENT
-    ],
-    Privileges: [
-      read
     ]
   },
   {
@@ -79,9 +67,6 @@
     ],
     Components: [
       VEVENT
-    ],
-    Privileges: [
-      read
     ]
   },
   {
@@ -96,9 +81,6 @@
     ],
     Components: [
       VEVENT
-    ],
-    Privileges: [
-      read
     ]
   },
   {

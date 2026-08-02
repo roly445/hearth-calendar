@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using HearthCalendar.Server.Auth;
+using HearthCalendar.Server.Feeds;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Shared.Domain;
@@ -27,6 +28,16 @@ public static class CalDavEndpoints
         new("family", "Family", IsWritable: false),
         new("events", "Events", IsWritable: false)
     ];
+    private static readonly IReadOnlyDictionary<string, VirtualCalendar> ReadOnlyVirtualCalendars =
+        new Dictionary<string, VirtualCalendar>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["combined"] = VirtualCalendar.Combined,
+            ["adult-a"] = VirtualCalendar.AdultA,
+            ["adult-b"] = VirtualCalendar.AdultB,
+            ["child"] = VirtualCalendar.Child,
+            ["family"] = VirtualCalendar.Family,
+            ["events"] = VirtualCalendar.Events
+        };
 
     public static IEndpointRouteBuilder MapCalDavEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -39,6 +50,16 @@ public static class CalDavEndpoints
         group.MapMethods("/", ["PROPFIND"], PropFindAsync)
             .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
         group.MapMethods("/{**path}", ["PROPFIND"], PropFindAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
+        group.MapMethods(
+            "/calendars/{calendarId}/{itemId}.ics",
+            [HttpMethods.Get],
+            GetCalendarObjectAsync)
+            .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
+        group.MapMethods(
+            "/calendars/{calendarId}/",
+            ["REPORT"],
+            ReportCalendarQueryAsync)
             .RequireAuthorization(HearthCalendarAuth.CalDavReadPolicy);
         group.MapMethods(
             "/calendars/{calendarId}/{itemId}.ics",
@@ -59,7 +80,7 @@ public static class CalDavEndpoints
         return Task.FromResult<IResult>(new CalDavOptionsResult(allow));
     }
 
-    private static Task<IResult> PropFindAsync(HttpRequest request)
+    private static Task<IResult> PropFindAsync(HttpRequest request, ClaimsPrincipal user)
     {
         var path = NormalizeCalDavPath(request.Path.Value);
         if (path.Length == 0)
@@ -79,7 +100,7 @@ public static class CalDavEndpoints
             return Task.FromResult<IResult>(new CalDavXmlResult(MultiStatus(
                 Calendars.Select(calendar => Response(
                     $"/caldav/calendars/{calendar.Id}/",
-                    PropStatOk(CalendarProperties(calendar)))))));
+                    PropStatOk(CalendarProperties(calendar, user)))))));
         }
 
         const string calendarPrefix = "calendars/";
@@ -97,7 +118,7 @@ public static class CalDavEndpoints
             : Task.FromResult<IResult>(new CalDavXmlResult(MultiStatus(
                 Response(
                     $"/caldav/calendars/{calendar.Id}/",
-                    PropStatOk(CalendarProperties(calendar))))));
+                    PropStatOk(CalendarProperties(calendar, user))))));
     }
 
     private static string NormalizeCalDavPath(string? path)
@@ -209,8 +230,156 @@ public static class CalDavEndpoints
 
     private static bool CanWriteCalendar(ClaimsPrincipal user, string calendarId) =>
         user.Claims.Any(claim =>
-            claim.Type == HearthCalendarAuth.AllowedCalendarClaim &&
+            claim.Type == HearthCalendarAuth.CalDavWritableCalendarClaim &&
             string.Equals(claim.Value, calendarId, StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<IResult> GetCalendarObjectAsync(
+        string calendarId,
+        string itemId,
+        ClaimsPrincipal user,
+        IHearthCalendarStore store,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetReadOnlyVirtualCalendar(calendarId, out var virtualCalendar))
+        {
+            return Results.NotFound();
+        }
+
+        if (!CanReadCalendar(user, calendarId))
+        {
+            return Results.Forbid();
+        }
+
+        if (!Guid.TryParse(itemId, out var parsedItemId))
+        {
+            return Results.NotFound();
+        }
+
+        var calendarEvent = await store.LoadApprovedEventAsync(
+            new CalendarEventId(parsedItemId),
+            virtualCalendar,
+            cancellationToken);
+        if (calendarEvent is null)
+        {
+            return Results.NotFound();
+        }
+
+        var calendarData = IcsFeedWriter.Write(virtualCalendar, [calendarEvent]);
+        var eTag = CalDavContentHasher.ToETag(CalDavContentHasher.Hash(calendarData));
+
+        return new CalDavIcsResult(calendarData, eTag);
+    }
+
+    private static async Task<IResult> ReportCalendarQueryAsync(
+        string calendarId,
+        HttpRequest request,
+        ClaimsPrincipal user,
+        IHearthCalendarStore store,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetReadOnlyVirtualCalendar(calendarId, out var virtualCalendar))
+        {
+            return Results.NotFound();
+        }
+
+        if (!CanReadCalendar(user, calendarId))
+        {
+            return Results.Forbid();
+        }
+
+        var (from, to) = await ReadCalendarQueryRangeAsync(request, cancellationToken);
+        var events = await store.QueryApprovedEventsAsync(
+            from,
+            to,
+            virtualCalendar,
+            cancellationToken);
+
+        return new CalDavXmlResult(MultiStatus(events.Select(calendarEvent =>
+        {
+            var calendarData = IcsFeedWriter.Write(virtualCalendar, [calendarEvent]);
+
+            return Response(
+                $"/caldav/calendars/{calendarId.ToLowerInvariant()}/{calendarEvent.Id.Value}.ics",
+                PropStatOk(
+                    GetETag(CalDavContentHasher.ToETag(CalDavContentHasher.Hash(calendarData))),
+                    CalendarData(calendarData)));
+        })));
+    }
+
+    private static bool TryGetReadOnlyVirtualCalendar(
+        string calendarId,
+        out VirtualCalendar virtualCalendar) =>
+        ReadOnlyVirtualCalendars.TryGetValue(calendarId, out virtualCalendar);
+
+    private static bool CanReadCalendar(ClaimsPrincipal user, string calendarId) =>
+        user.Claims.Any(claim =>
+            claim.Type == HearthCalendarAuth.CalDavReadableCalendarClaim &&
+            string.Equals(claim.Value, calendarId, StringComparison.OrdinalIgnoreCase));
+
+    private static async Task<(DateOnly From, DateOnly To)> ReadCalendarQueryRangeAsync(
+        HttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var fallback = (From: today.AddYears(-1), To: today.AddYears(3));
+        using var reader = new StreamReader(request.Body, Encoding.UTF8);
+        var body = await reader.ReadToEndAsync(cancellationToken);
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            return fallback;
+        }
+
+        try
+        {
+            var document = XDocument.Parse(body);
+            var timeRange = document.Descendants()
+                .FirstOrDefault(element => string.Equals(element.Name.LocalName, "time-range", StringComparison.OrdinalIgnoreCase));
+            if (timeRange is null)
+            {
+                return fallback;
+            }
+
+            var from = ParseCalDavRangeBoundary(timeRange.Attribute("start")?.Value)?.Date ?? fallback.From;
+            var end = ParseCalDavRangeBoundary(timeRange.Attribute("end")?.Value);
+            var to = end is null
+                ? fallback.To
+                : end.IsDateOnly || end.Time == TimeOnly.MinValue
+                    ? end.Date.AddDays(-1)
+                    : end.Date;
+
+            return from <= to ? (from, to) : fallback;
+        }
+        catch (System.Xml.XmlException)
+        {
+            return fallback;
+        }
+    }
+
+    private static CalDavRangeBoundary? ParseCalDavRangeBoundary(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var normalized = value.TrimEnd('Z');
+        if (DateTime.TryParseExact(
+            normalized,
+            "yyyyMMdd'T'HHmmss",
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var dateTime))
+        {
+            return new CalDavRangeBoundary(
+                DateOnly.FromDateTime(dateTime),
+                TimeOnly.FromDateTime(dateTime),
+                IsDateOnly: false);
+        }
+
+        return DateOnly.TryParseExact(value, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+            ? new CalDavRangeBoundary(date, null, IsDateOnly: true)
+            : null;
+    }
 
     private static IReadOnlyList<string> ReadIfMatchETags(HttpRequest request) =>
         request.Headers.IfMatch
@@ -234,17 +403,32 @@ public static class CalDavEndpoints
             .SelectMany(value => value?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries) ?? [])
             .Any(value => value == "*");
 
-    private static XElement[] CalendarProperties(CalDavCalendarDescriptor calendar)
+    private static XElement[] CalendarProperties(CalDavCalendarDescriptor calendar, ClaimsPrincipal user)
     {
-        var privilege = calendar.IsWritable ? WritePrivilege() : ReadPrivilege();
+        var privileges = CurrentUserPrivileges(calendar, user);
 
         return
         [
             DisplayName(calendar.DisplayName),
             ResourceType(Collection(), Calendar()),
             SupportedCalendarComponentSet(),
-            CurrentUserPrivilegeSet(privilege)
+            CurrentUserPrivilegeSet(privileges)
         ];
+    }
+
+    private static XElement[] CurrentUserPrivileges(CalDavCalendarDescriptor calendar, ClaimsPrincipal user)
+    {
+        if (calendar.IsWritable && CanWriteCalendar(user, calendar.Id))
+        {
+            return [WritePrivilege()];
+        }
+
+        if (!calendar.IsWritable && CanReadCalendar(user, calendar.Id))
+        {
+            return [ReadPrivilege()];
+        }
+
+        return [];
     }
 
     private static XDocument MultiStatus(params XElement[] responses) =>
@@ -282,6 +466,20 @@ public static class CalDavEndpoints
         XNamespace dav = DavNamespace;
 
         return new XElement(dav + "displayname", value);
+    }
+
+    private static XElement GetETag(string value)
+    {
+        XNamespace dav = DavNamespace;
+
+        return new XElement(dav + "getetag", value);
+    }
+
+    private static XElement CalendarData(string value)
+    {
+        XNamespace calDav = CalDavNamespace;
+
+        return new XElement(calDav + "calendar-data", value);
     }
 
     private static XElement ResourceType(params XElement[] resourceTypes)
@@ -395,6 +593,8 @@ public static class CalDavEndpoints
 
 public sealed record CalDavCalendarDescriptor(string Id, string DisplayName, bool IsWritable);
 
+public sealed record CalDavRangeBoundary(DateOnly Date, TimeOnly? Time, bool IsDateOnly);
+
 public static class CalDavContentHasher
 {
     public static string Hash(string content)
@@ -429,6 +629,21 @@ public sealed class CalDavXmlResult(XDocument document) : IResult
 
         return httpContext.Response.WriteAsync(
             document.ToString(SaveOptions.DisableFormatting),
+            Encoding.UTF8,
+            httpContext.RequestAborted);
+    }
+}
+
+public sealed class CalDavIcsResult(string content, string eTag) : IResult
+{
+    public Task ExecuteAsync(HttpContext httpContext)
+    {
+        httpContext.Response.StatusCode = StatusCodes.Status200OK;
+        httpContext.Response.ContentType = "text/calendar; charset=utf-8";
+        httpContext.Response.Headers.ETag = eTag;
+
+        return httpContext.Response.WriteAsync(
+            content,
             Encoding.UTF8,
             httpContext.RequestAborted);
     }

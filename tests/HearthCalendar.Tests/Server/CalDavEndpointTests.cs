@@ -99,6 +99,152 @@ public sealed class CalDavEndpointTests
     }
 
     [Fact]
+    public async Task Read_only_caldav_get_returns_approved_virtual_calendar_event()
+    {
+        var store = new RecordingCalDavStore();
+        var approved = AdultAEvent(
+            "Dentist for Adult A",
+            new DateOnly(2026, 8, 1),
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30));
+        store.ApprovedEvents.Add(approved);
+        store.ApprovedEvents.Add(approved with
+        {
+            Id = CalendarEventId.New(),
+            Title = "Staged Adult A appointment",
+            ReviewStatus = ReviewStatus.Staged
+        });
+        store.ApprovedEvents.Add(approved with
+        {
+            Id = CalendarEventId.New(),
+            Title = "Rejected Adult A appointment",
+            ReviewStatus = ReviewStatus.Rejected
+        });
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavReadUser, CalDavReadPassword);
+
+        var response = await client.GetAsync($"/caldav/calendars/adult-a/{approved.Id.Value}.ics");
+        var content = await response.Content.ReadAsStringAsync();
+        var parsed = IcsAssertions.Parse(content);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("text/calendar", response.Content.Headers.ContentType?.MediaType);
+        Assert.NotNull(response.Headers.ETag);
+        var parsedEvent = Assert.Single(parsed.Events);
+        await Verifier.Verify(new
+        {
+            Calendar = parsed.CalendarProperties,
+            Event = NormalizeIcsEvent(parsedEvent.Properties)
+        });
+    }
+
+    [Fact]
+    public async Task Calendar_query_report_returns_approved_events_in_requested_range()
+    {
+        var store = new RecordingCalDavStore();
+        store.ApprovedEvents.Add(AdultAEvent(
+            "Before range",
+            new DateOnly(2026, 7, 31),
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30)));
+        store.ApprovedEvents.Add(AdultAEvent(
+            "Dentist for Adult A",
+            new DateOnly(2026, 8, 1),
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30)));
+        store.ApprovedEvents.Add(BirthdayEvent("Adult B birthday", new DateOnly(2026, 8, 2)));
+        store.ApprovedEvents.Add(AdultAEvent(
+            "After range",
+            new DateOnly(2026, 8, 3),
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30)));
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavReadUser, CalDavReadPassword);
+
+        var response = await client.SendAsync(Report(
+            "/caldav/calendars/combined/",
+            """
+            <?xml version="1.0" encoding="utf-8" ?>
+            <C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+              <D:prop>
+                <D:getetag />
+                <C:calendar-data />
+              </D:prop>
+              <C:filter>
+                <C:comp-filter name="VCALENDAR">
+                  <C:comp-filter name="VEVENT">
+                    <C:time-range start="20260801T000000Z" end="20260803T000000Z" />
+                  </C:comp-filter>
+                </C:comp-filter>
+              </C:filter>
+            </C:calendar-query>
+            """));
+        var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
+
+        Assert.Equal((HttpStatusCode)207, response.StatusCode);
+        Assert.Equal(new DateOnly(2026, 8, 1), store.Queries.Single().From);
+        Assert.Equal(new DateOnly(2026, 8, 2), store.Queries.Single().To);
+        await Verifier.Verify(NormalizeReportXml(document));
+    }
+
+    [Fact]
+    public async Task Calendar_query_report_keeps_same_day_non_midnight_end_range()
+    {
+        var store = new RecordingCalDavStore();
+        store.ApprovedEvents.Add(AdultAEvent(
+            "Dentist for Adult A",
+            new DateOnly(2026, 8, 1),
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30)));
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavReadUser, CalDavReadPassword);
+
+        var response = await client.SendAsync(Report(
+            "/caldav/calendars/adult-a/",
+            """
+            <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav">
+              <C:filter>
+                <C:comp-filter name="VCALENDAR">
+                  <C:comp-filter name="VEVENT">
+                    <C:time-range start="20260801T090000Z" end="20260801T120000Z" />
+                  </C:comp-filter>
+                </C:comp-filter>
+              </C:filter>
+            </C:calendar-query>
+            """));
+
+        Assert.Equal((HttpStatusCode)207, response.StatusCode);
+        Assert.Equal(new DateOnly(2026, 8, 1), store.Queries.Single().From);
+        Assert.Equal(new DateOnly(2026, 8, 1), store.Queries.Single().To);
+    }
+
+    [Fact]
+    public async Task Caldav_read_credential_cannot_read_unlisted_virtual_calendar()
+    {
+        var store = new RecordingCalDavStore();
+        store.ApprovedEvents.Add(AdultAEvent(
+            "Dentist for Adult A",
+            new DateOnly(2026, 8, 1),
+            new TimeOnly(9, 0),
+            new TimeOnly(9, 30)));
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavReadUser, CalDavReadPassword);
+
+        var response = await client.SendAsync(Report(
+            "/caldav/calendars/adult-b/",
+            """
+            <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" />
+            """));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Empty(store.Queries);
+    }
+
+    [Fact]
     public async Task Propfind_root_returns_service_discovery_multistatus()
     {
         var store = new RecordingCalDavStore();
@@ -146,6 +292,33 @@ public sealed class CalDavEndpointTests
         Assert.Contains(discovery, item =>
             item.Href == "/caldav/calendars/smart-inbox/" &&
             item.Privileges.SequenceEqual(["write"]));
+    }
+
+    [Fact]
+    public async Task Propfind_calendar_privileges_are_scoped_to_caldav_credential()
+    {
+        var store = new RecordingCalDavStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization = Basic(CalDavReadUser, CalDavReadPassword);
+
+        var response = await client.SendAsync(PropFind("/caldav/calendars/", depth: "1"));
+        var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
+        var discovery = NormalizeDiscoveryXml(document);
+
+        Assert.Equal((HttpStatusCode)207, response.StatusCode);
+        Assert.Contains(discovery, item =>
+            item.Href == "/caldav/calendars/adult-a/" &&
+            item.Privileges.SequenceEqual(["read"]));
+        Assert.Contains(discovery, item =>
+            item.Href == "/caldav/calendars/combined/" &&
+            item.Privileges.SequenceEqual(["read"]));
+        Assert.Contains(discovery, item =>
+            item.Href == "/caldav/calendars/smart-inbox/" &&
+            item.Privileges.Count == 0);
+        Assert.Contains(discovery, item =>
+            item.Href == "/caldav/calendars/adult-b/" &&
+            item.Privileges.Count == 0);
     }
 
     [Fact]
@@ -520,6 +693,8 @@ public sealed class CalDavEndpointTests
                         ["Auth:CalDavCredentials:0:Scopes:0"] = HearthCalendarAuth.CalDavWriteScope,
                         ["Auth:CalDavCredentials:1:Name"] = CalDavReadUser,
                         ["Auth:CalDavCredentials:1:SecretHash"] = HearthCalendarSecretHasher.Hash(CalDavReadPassword),
+                        ["Auth:CalDavCredentials:1:ReadableCalendars:0"] = "adult-a",
+                        ["Auth:CalDavCredentials:1:ReadableCalendars:1"] = "combined",
                         ["Auth:CalDavCredentials:1:Scopes:0"] = HearthCalendarAuth.CalDavReadScope
                     });
                 });
@@ -544,6 +719,17 @@ public sealed class CalDavEndpointTests
     {
         var request = new HttpRequestMessage(new HttpMethod("PROPFIND"), uri);
         request.Headers.TryAddWithoutValidation("Depth", depth);
+
+        return request;
+    }
+
+    private static HttpRequestMessage Report(string uri, string body)
+    {
+        var request = new HttpRequestMessage(new HttpMethod("REPORT"), uri)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/xml")
+        };
+        request.Headers.TryAddWithoutValidation("Depth", "1");
 
         return request;
     }
@@ -584,6 +770,58 @@ public sealed class CalDavEndpointTests
             .ToArray();
     }
 
+    private static IReadOnlyList<CalDavReportResponse> NormalizeReportXml(XDocument document)
+    {
+        XNamespace dav = "DAV:";
+        XNamespace calDav = "urn:ietf:params:xml:ns:caldav";
+
+        return document
+            .Descendants(dav + "response")
+            .Select(response =>
+            {
+                var calendarData = response.Descendants(calDav + "calendar-data").Single().Value;
+                var parsed = IcsAssertions.Parse(calendarData);
+                var parsedEvent = Assert.Single(parsed.Events);
+
+                return new CalDavReportResponse(
+                    NormalizeCalDavHref(response.Element(dav + "href")?.Value),
+                    string.IsNullOrWhiteSpace(response.Descendants(dav + "getetag").SingleOrDefault()?.Value)
+                        ? string.Empty
+                        : "stable-etag",
+                    NormalizeIcsEvent(parsedEvent.Properties));
+            })
+            .OrderBy(response => response.Event["SUMMARY"])
+            .ToArray();
+    }
+
+    private static string NormalizeCalDavHref(string? href)
+    {
+        if (string.IsNullOrWhiteSpace(href))
+        {
+            return string.Empty;
+        }
+
+        var lastSlash = href.LastIndexOf("/", StringComparison.Ordinal);
+
+        return lastSlash < 0 ? href : href[..(lastSlash + 1)] + "stable-event.ics";
+    }
+
+    private static IReadOnlyDictionary<string, string> NormalizeIcsEvent(IReadOnlyDictionary<string, string> properties)
+    {
+        var normalized = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var (key, value) in properties)
+        {
+            normalized[key] = value;
+        }
+
+        if (normalized.ContainsKey("UID"))
+        {
+            normalized["UID"] = "stable-uid@hearth-calendar";
+        }
+
+        return normalized;
+    }
+
     private sealed record CalDavDiscoveryResponse(
         string Href,
         string Status,
@@ -593,6 +831,11 @@ public sealed class CalDavEndpointTests
         IReadOnlyList<string> ResourceTypes,
         IReadOnlyList<string> Components,
         IReadOnlyList<string> Privileges);
+
+    private sealed record CalDavReportResponse(
+        string Href,
+        string ETag,
+        IReadOnlyDictionary<string, string> Event);
 
     private static string BasicIcs() =>
         """
@@ -604,6 +847,33 @@ public sealed class CalDavEndpointTests
         END:VEVENT
         END:VCALENDAR
         """;
+
+    private static CalendarEvent AdultAEvent(
+        string title,
+        DateOnly date,
+        TimeOnly? startTime,
+        TimeOnly? endTime) =>
+        CalendarEvent.Approved(
+            CalendarEventId.New(),
+            title,
+            new EventTime(date, startTime, endTime, startTime is null && endTime is null),
+            VirtualCalendar.AdultA,
+            EventCategory.Personal,
+            BusyStatus.Busy,
+            [new Participant(KnownPeople.AdultA, ParticipationRole.Attendee, BusyStatus.Busy)],
+            CalendarSource.Test);
+
+    private static CalendarEvent BirthdayEvent(string title, DateOnly date) =>
+        CalendarEvent.Approved(
+            CalendarEventId.New(),
+            title,
+            new EventTime(date, null, null, true),
+            VirtualCalendar.Events,
+            EventCategory.Birthday,
+            BusyStatus.Free,
+            [new Participant(KnownPeople.AdultB, ParticipationRole.Attendee, BusyStatus.Free)],
+            CalendarSource.Test,
+            new RecurrenceRule(RecurrenceFrequency.Yearly));
 
     private static object DescribeIntent(EventIntent intent) => new
     {
@@ -646,6 +916,10 @@ public sealed class CalDavEndpointTests
         public List<AuditEntry> Audits { get; } = [];
 
         public Dictionary<string, RecordingCalDavObject> Objects { get; } = new(StringComparer.Ordinal);
+
+        public List<CalendarEvent> ApprovedEvents { get; } = [];
+
+        public List<ApprovedEventQuery> Queries { get; } = [];
 
         public Task StoreIntentAsync(EventIntent intent, CancellationToken cancellationToken)
         {
@@ -794,8 +1068,29 @@ public sealed class CalDavEndpointTests
             DateOnly from,
             DateOnly to,
             VirtualCalendar calendar,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            Queries.Add(new ApprovedEventQuery(from, to, calendar));
+
+            return Task.FromResult<IReadOnlyList<CalendarEvent>>(VirtualCalendarViews
+                .ForCalendar(calendar, ApprovedEvents)
+                .Where(calendarEvent => calendarEvent.Time.Date >= from && calendarEvent.Time.Date <= to)
+                .ToArray());
+        }
+
+        public Task<CalendarEvent?> LoadApprovedEventAsync(
+            CalendarEventId id,
+            VirtualCalendar calendar,
+            CancellationToken cancellationToken)
+        {
+            var calendarEvent = ApprovedEvents.SingleOrDefault(candidate => candidate.Id == id);
+            if (calendarEvent is null)
+            {
+                return Task.FromResult<CalendarEvent?>(null);
+            }
+
+            return Task.FromResult(VirtualCalendarViews.ForCalendar(calendar, [calendarEvent]).SingleOrDefault());
+        }
 
         public Task<IReadOnlyList<ReviewDecision>> QueryReviewQueueAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
@@ -828,4 +1123,6 @@ public sealed class CalDavEndpointTests
         string ETag,
         DateTimeOffset CreatedAt,
         DateTimeOffset UpdatedAt);
+
+    private sealed record ApprovedEventQuery(DateOnly From, DateOnly To, VirtualCalendar Calendar);
 }

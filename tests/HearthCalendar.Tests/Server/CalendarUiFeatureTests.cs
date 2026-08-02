@@ -544,6 +544,12 @@ public sealed class CalendarUiFeatureTests
                 .Where(calendarEvent => calendarEvent.Time.Date >= from && calendarEvent.Time.Date <= to)
                 .ToArray());
 
+        public Task<CalendarEvent?> LoadApprovedEventAsync(
+            CalendarEventId id,
+            VirtualCalendar calendar,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(ApprovedEvents.SingleOrDefault(calendarEvent => calendarEvent.Id == id));
+
         public Task<IReadOnlyList<ReviewDecision>> QueryReviewQueueAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<ReviewDecision>>(Decisions
                 .Where(decision => decision.Status == ReviewStatus.Staged)

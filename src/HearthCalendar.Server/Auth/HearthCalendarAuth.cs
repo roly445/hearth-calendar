@@ -20,6 +20,8 @@ public static class HearthCalendarAuth
     public const string ScopeClaim = "scope";
     public const string TokenKindClaim = "token_kind";
     public const string AllowedCalendarClaim = "allowed_calendar";
+    public const string CalDavReadableCalendarClaim = "caldav_readable_calendar";
+    public const string CalDavWritableCalendarClaim = "caldav_writable_calendar";
     public const string ClientTokenKind = "client";
     public const string FeedTokenKind = "feed";
     public const string CalDavTokenKind = "caldav";
@@ -138,6 +140,8 @@ public sealed record CalDavCredentialOptions
 
     public required string SecretHash { get; init; }
 
+    public IReadOnlyList<string> ReadableCalendars { get; init; } = [];
+
     public IReadOnlyList<string> WritableCalendars { get; init; } = [];
 
     public IReadOnlyList<string> Scopes { get; init; } = [];
@@ -222,6 +226,8 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
                 calDavCredential.Name,
                 HearthCalendarAuth.CalDavTokenKind,
                 calDavCredential.Scopes,
+                [],
+                calDavCredential.ReadableCalendars,
                 calDavCredential.WritableCalendars)));
         }
 
@@ -339,7 +345,9 @@ public static class HearthCalendarTokenPrincipalFactory
         string name,
         string tokenKind,
         IReadOnlyList<string> scopes,
-        IReadOnlyList<string> allowedCalendars)
+        IReadOnlyList<string> allowedCalendars,
+        IReadOnlyList<string>? calDavReadableCalendars = null,
+        IReadOnlyList<string>? calDavWritableCalendars = null)
     {
         var claims = new List<Claim>
         {
@@ -349,6 +357,10 @@ public static class HearthCalendarTokenPrincipalFactory
         };
         claims.AddRange(scopes.Select(scope => new Claim(HearthCalendarAuth.ScopeClaim, scope)));
         claims.AddRange(allowedCalendars.Select(calendar => new Claim(HearthCalendarAuth.AllowedCalendarClaim, calendar)));
+        claims.AddRange((calDavReadableCalendars ?? []).Select(calendar =>
+            new Claim(HearthCalendarAuth.CalDavReadableCalendarClaim, calendar)));
+        claims.AddRange((calDavWritableCalendars ?? []).Select(calendar =>
+            new Claim(HearthCalendarAuth.CalDavWritableCalendarClaim, calendar)));
 
         var identity = new ClaimsIdentity(claims, HearthCalendarAuth.TokenScheme);
 

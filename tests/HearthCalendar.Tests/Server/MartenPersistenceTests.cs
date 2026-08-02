@@ -121,6 +121,22 @@ public sealed class MartenPersistenceTests(MartenPostgreSqlFixture fixture)
             Today,
             VirtualCalendar.Events,
             CancellationToken.None);
+        var loadedAdultA = await store.LoadApprovedEventAsync(
+            approvedAdultA.Id,
+            VirtualCalendar.AdultA,
+            CancellationToken.None);
+        var hiddenStaged = await store.LoadApprovedEventAsync(
+            stagedAdultA.Id,
+            VirtualCalendar.AdultA,
+            CancellationToken.None);
+        var hiddenOtherCalendar = await store.LoadApprovedEventAsync(
+            approvedAdultA.Id,
+            VirtualCalendar.AdultB,
+            CancellationToken.None);
+
+        Assert.Equal(approvedAdultA.Id, loadedAdultA?.Id);
+        Assert.Null(hiddenStaged);
+        Assert.Null(hiddenOtherCalendar);
 
         await Verifier.Verify(new
         {
