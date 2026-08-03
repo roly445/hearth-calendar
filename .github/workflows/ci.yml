@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  fast-checks:
     runs-on: ubuntu-latest
 
     steps:
@@ -34,5 +34,32 @@ jobs:
       - name: Build
         run: dotnet build --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test --configuration Release --no-build
+      - name: Test fast .NET suite
+        run: dotnet test --configuration Release --no-build --filter "Category!=Docker"
+
+  docker-integration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Restore client assets
+        run: npm ci
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Test Docker-backed .NET suite
+        run: dotnet test --configuration Release --no-build --filter "Category=Docker"
