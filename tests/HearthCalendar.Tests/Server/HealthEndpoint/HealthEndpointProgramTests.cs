@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -36,6 +37,7 @@ public sealed class HealthEndpointProgramTests : HealthEndpointTestBase
                 XContentTypeOptions = response.Headers.GetValues("X-Content-Type-Options").Single(),
                 XFrameOptions = response.Headers.GetValues("X-Frame-Options").Single(),
                 ReferrerPolicy = response.Headers.GetValues("Referrer-Policy").Single(),
+                PermissionsPolicy = response.Headers.GetValues("Permissions-Policy").Single(),
                 ContentSecurityPolicy = response.Headers.GetValues("Content-Security-Policy").Single()
             }
         });
@@ -63,7 +65,57 @@ public sealed class HealthEndpointProgramTests : HealthEndpointTestBase
                 Development = HearthCalendar.Server.Program.ShouldValidateServiceProvider("Development"),
                 Test = HearthCalendar.Server.Program.ShouldValidateServiceProvider("Test"),
                 Production = HearthCalendar.Server.Program.ShouldValidateServiceProvider("Production")
+            },
+            Kestrel = new
+            {
+                AddsServerHeader = AddsServerHeader()
             }
         });
+    }
+
+    [Fact]
+    public async Task Cors_denies_unconfigured_browser_origin()
+    {
+        await using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/admin/session");
+        request.Headers.Add("Origin", "https://calendar.example.home");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+
+        var response = await client.SendAsync(request);
+
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
+    }
+
+    [Fact]
+    public async Task Cors_allows_configured_browser_origin_with_credentials()
+    {
+        await using var factory = CreateFactory(new Dictionary<string, string?>
+        {
+            ["Security:Cors:AllowedOrigins:0"] = "https://calendar.example.home"
+        });
+        using var client = factory.CreateClient();
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/admin/session");
+        request.Headers.Add("Origin", "https://calendar.example.home");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(
+            "https://calendar.example.home",
+            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
+        Assert.Equal(
+            "true",
+            response.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+    }
+
+    private static bool AddsServerHeader()
+    {
+        var options = new KestrelServerOptions();
+
+        HearthCalendar.Server.Program.ConfigureKestrelServerOptions(options);
+
+        return options.AddServerHeader;
     }
 }

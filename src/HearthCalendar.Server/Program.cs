@@ -13,6 +13,7 @@ using HearthCalendar.Server.SignalR;
 using HearthCalendar.Client.Contracts.Ui;
 using HearthCalendar.Server.Domain;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace HearthCalendar.Server;
 
@@ -25,8 +26,10 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
+        builder.WebHost.ConfigureKestrel(ConfigureKestrelServerOptions);
         builder.Services.AddHearthCalendarPersistence(builder.Configuration);
         builder.Services.AddHearthCalendarAuth(builder.Configuration);
+        builder.Services.Configure<HearthCalendarSecurityOptions>(builder.Configuration.GetSection("Security"));
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSignalR();
         builder.Services.AddSingleton<IAiReviewProvider>(_ => NoOpAiReviewProvider.Instance);
@@ -51,14 +54,15 @@ public class Program
         {
             options.AddPolicy(ConfiguredOriginsPolicy, policy =>
             {
-                var allowedOrigins = builder.Configuration
-                    .GetSection("Security:Cors:AllowedOrigins")
-                    .Get<string[]>() ?? [];
+                var security = builder.Configuration
+                    .GetSection("Security")
+                    .Get<HearthCalendarSecurityOptions>() ?? new HearthCalendarSecurityOptions();
+                var allowedOrigins = security.Cors.AllowedOrigins;
 
-                if (allowedOrigins.Length > 0)
+                if (allowedOrigins.Count > 0)
                 {
                     policy
-                        .WithOrigins(allowedOrigins)
+                        .WithOrigins([.. allowedOrigins])
                         .AllowCredentials()
                         .AllowAnyHeader()
                         .AllowAnyMethod();
@@ -109,6 +113,11 @@ public class Program
         options.ValidateScopes = true;
     }
 
+    public static void ConfigureKestrelServerOptions(KestrelServerOptions options)
+    {
+        options.AddServerHeader = false;
+    }
+
     public static bool ShouldValidateServiceProvider(string environmentName)
     {
         return string.Equals(environmentName, Environments.Development, StringComparison.Ordinal)
@@ -120,6 +129,16 @@ public sealed record HealthResponse(string Status);
 
 public sealed record AdminSessionResponse(string Status);
 
+public sealed record HearthCalendarSecurityOptions
+{
+    public HearthCalendarCorsOptions Cors { get; init; } = new();
+}
+
+public sealed record HearthCalendarCorsOptions
+{
+    public IReadOnlyList<string> AllowedOrigins { get; init; } = [];
+}
+
 internal static class SecurityHeadersMiddleware
 {
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app)
@@ -130,6 +149,16 @@ internal static class SecurityHeadersMiddleware
             headers.XContentTypeOptions = "nosniff";
             headers.XFrameOptions = "DENY";
             headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+            headers["Permissions-Policy"] = string.Join(
+                ", ",
+                "accelerometer=()",
+                "camera=()",
+                "geolocation=()",
+                "gyroscope=()",
+                "magnetometer=()",
+                "microphone=()",
+                "payment=()",
+                "usb=()");
             headers.ContentSecurityPolicy = string.Join(
                 "; ",
                 "default-src 'self'",

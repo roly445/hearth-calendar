@@ -117,6 +117,7 @@ Adopt now:
 - Avoid wildcard production CORS.
 - Hide unnecessary server-identifying headers where possible.
 - Add security headers deliberately and verify the UI.
+- Disable unnecessary browser capabilities through `Permissions-Policy`.
 
 Acceptance criteria:
 
@@ -127,6 +128,7 @@ Acceptance criteria:
 - Client write tokens cannot access admin UI.
 - Production CORS uses explicit origins.
 - CSP supports Blazor WASM, BluQube, SignalR, and PWA assets.
+- `Permissions-Policy` denies unused capabilities such as camera, microphone, geolocation, payment, and USB.
 
 ## Observability
 
