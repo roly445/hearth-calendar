@@ -12,17 +12,25 @@ namespace HearthCalendar.Tests.Server;
 
 public abstract class HealthEndpointTestBase
 {
-    protected static WebApplicationFactory<HearthCalendar.Server.Program> CreateFactory() =>
+    protected static WebApplicationFactory<HearthCalendar.Server.Program> CreateFactory(
+        IReadOnlyDictionary<string, string?>? configurationValues = null) =>
         new WebApplicationFactory<HearthCalendar.Server.Program>()
             .WithWebHostBuilder(builder =>
             {
                 builder.ConfigureAppConfiguration((_, configuration) =>
                 {
-                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    var values = new Dictionary<string, string?>
                     {
                         ["Database:ConnectionString"] = "Host=localhost;Database=hearth_calendar_test",
                         ["Database:SchemaName"] = "hearth_calendar_test"
-                    });
+                    };
+
+                    foreach (var pair in configurationValues ?? new Dictionary<string, string?>())
+                    {
+                        values[pair.Key] = pair.Value;
+                    }
+
+                    configuration.AddInMemoryCollection(values);
                 });
             });
 }

@@ -236,6 +236,7 @@ Adopt deliberately:
 - add `X-Content-Type-Options: nosniff`
 - add clickjacking protection through CSP `frame-ancestors` or `X-Frame-Options`
 - add `Referrer-Policy`
+- add `Permissions-Policy` to disable browser capabilities the app does not need
 - add HSTS only when HTTPS assumptions are true in the deployment environment
 
 Content Security Policy should be tuned after the UI framework is chosen, especially if Blazor Server is used.
@@ -320,6 +321,8 @@ form-action 'self';
 upgrade-insecure-requests;
 ```
 
+The app also emits a restrictive `Permissions-Policy` for unused browser capabilities such as camera, microphone, geolocation, payment, and USB access.
+
 The final policy may need adjustment based on:
 
 - Blazor WebAssembly boot/runtime requirements
@@ -352,6 +355,7 @@ Local development may need a looser policy for hot reload, dev server origins, a
 - Production CSP supports PWA manifest and service worker loading.
 - Development-only CORS/CSP looseness is isolated by environment.
 - CSP changes are verified against login, Blazor boot, BluQube calls, SignalR reconnect, and PWA installation.
+- Browser capability permissions are denied by default unless a feature explicitly requires one.
 
 ## Audit Events
 
