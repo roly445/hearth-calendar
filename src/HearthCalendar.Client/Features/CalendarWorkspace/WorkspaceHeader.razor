@@ -1,0 +1,14 @@
+<header class="workspace-header">
+    <div>
+        <p class="eyebrow">Family operations</p>
+        <h1>Hearth Calendar</h1>
+    </div>
+    <div class="header-actions">
+        <span class="connection-pill @(IsOffline ? "offline" : "online")">@(IsOffline ? "Offline" : "Online")</span>
+        @if (IsStale)
+        {
+            <span class="connection-pill stale">Stale</span>
+        }
+        <button class="refresh-button" title="Refresh" @onclick="RefreshRequested" disabled="@IsLoading">Refresh</button>
+    </div>
+</header>

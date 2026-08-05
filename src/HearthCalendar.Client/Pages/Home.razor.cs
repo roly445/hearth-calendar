@@ -2,16 +2,15 @@ using BluQube.Commands;
 using BluQube.Constants;
 using BluQube.Queries;
 using HearthCalendar.Client.Contracts.Ui;
+using HearthCalendar.Client.Features.CalendarWorkspace;
 using HearthCalendar.Client.Services;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Forms;
 
 namespace HearthCalendar.Client.Pages;
 
 public partial class Home : IAsyncDisposable
 {
     private readonly CreateEventModel createModel = new();
-    private readonly Dictionary<Guid, string> editText = [];
     private IReadOnlyList<ReviewQueueItemDto> reviewItems = [];
     private IReadOnlyList<CalendarEventSummaryDto> upcomingEvents = [];
     private IReadOnlyList<OfflineQueuedEventIntent> queuedIntents = [];
@@ -118,11 +117,6 @@ public partial class Home : IAsyncDisposable
             await OfflineStore.StoreSnapshotAsync(upcomingEvents, DateTimeOffset.Now);
         }
 
-        foreach (var item in reviewItems)
-        {
-            editText.TryAdd(item.ReviewDecisionId, item.RawText);
-        }
-
         isLoading = false;
     }
 
@@ -171,13 +165,13 @@ public partial class Home : IAsyncDisposable
     private Task RejectAsync(ReviewQueueItemDto item) =>
         RunCommandAsync(new RejectReviewItemCommand(item.ReviewDecisionId));
 
-    private Task EditAsync(ReviewQueueItemDto item) =>
+    private Task EditAsync(ReviewQueueEditRequest request) =>
         RunCommandAsync(new EditReviewItemCommand(
-            item.ReviewDecisionId,
-            editText.TryGetValue(item.ReviewDecisionId, out var text) ? text : item.RawText,
-            item.Candidate?.Date,
-            item.Candidate?.StartTime,
-            item.Candidate?.EndTime));
+            request.Item.ReviewDecisionId,
+            request.RawText,
+            request.Item.Candidate?.Date,
+            request.Item.Candidate?.StartTime,
+            request.Item.Candidate?.EndTime));
 
     private async Task RunCommandAsync<TResult>(ICommand<TResult> command)
         where TResult : ICommandResult, IReviewActionResult
@@ -285,15 +279,6 @@ public partial class Home : IAsyncDisposable
     private void SetEndTime(ChangeEventArgs args) =>
         createModel.EndTimeText = args.Value?.ToString() ?? "";
 
-    private static string FormatEvent(CalendarEventSummaryDto calendarEvent)
-    {
-        var time = calendarEvent.IsAllDay
-            ? "All day"
-            : $"{calendarEvent.StartTime:HH\\:mm} to {calendarEvent.EndTime:HH\\:mm}";
-
-        return $"{time} - {calendarEvent.Category} - {string.Join(", ", calendarEvent.Participants)}";
-    }
-
     private static (IReadOnlyList<T> Items, string? Message) ReadCollectionResult<T>(
         QueryResultStatus status,
         IReadOnlyList<T> items,
@@ -315,22 +300,6 @@ public partial class Home : IAsyncDisposable
             _ => "The action could not be completed."
         };
 
-    private static string QueueStatus(OfflineQueuedEventIntent intent) =>
-        intent.Status switch
-        {
-            OfflineQueuedEventStatus.SyncFailed => "Retry",
-            OfflineQueuedEventStatus.Syncing => "Syncing",
-            _ => "Pending"
-        };
-
-    private static string FormatQueuedIntent(OfflineQueuedEventIntent intent)
-    {
-        var date = intent.Date?.ToString("dd MMM") ?? "No date";
-        var state = intent.LastError is null ? "waiting to sync" : intent.LastError;
-
-        return $"{date} - {state}";
-    }
-
     private static DateOnly? ParseDate(string? value) =>
         DateOnly.TryParse(value, out var date) ? date : null;
 
@@ -343,16 +312,5 @@ public partial class Home : IAsyncDisposable
         Updates.Reconnected -= OnReconnectedAsync;
         OfflineStore.BrowserCameOnline -= OnBrowserOnlineAsync;
         return Updates.DisposeAsync();
-    }
-
-    private sealed class CreateEventModel
-    {
-        public string RawText { get; set; } = "";
-
-        public string DateText { get; set; } = "";
-
-        public string StartTimeText { get; set; } = "";
-
-        public string EndTimeText { get; set; } = "";
     }
 }

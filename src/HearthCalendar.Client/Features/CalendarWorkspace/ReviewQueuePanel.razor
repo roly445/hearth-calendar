@@ -1,0 +1,54 @@
+<section class="panel review-panel">
+    <h2>Review Queue</h2>
+    @if (!string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <p class="empty-state">@StatusMessage</p>
+    }
+    else if (Items.Count == 0)
+    {
+        <p class="empty-state">No staged items.</p>
+    }
+    else
+    {
+        <div class="item-list">
+            @foreach (var item in Items)
+            {
+                <article class="review-item">
+                    <div class="item-heading">
+                        <div>
+                            <h3>@item.RawText</h3>
+                            <p>@item.Source - @item.Mode - @item.Status</p>
+                        </div>
+                        <span class="status-pill">@item.Status</span>
+                    </div>
+                    @if (item.Candidate is not null)
+                    {
+                        <p class="candidate">@CalendarDisplay.FormatEvent(item.Candidate)</p>
+                    }
+                    @if (item.AiSuggestion is not null)
+                    {
+                        <p class="suggestion">@item.AiSuggestion.Provider suggested @item.AiSuggestion.SuggestedTitle with @item.AiSuggestion.Confidence confidence.</p>
+                    }
+                    <ul class="reason-list">
+                        @foreach (var reason in item.Reasons)
+                        {
+                            <li>@reason.Code: @reason.Message</li>
+                        }
+                        @foreach (var clash in item.Clashes)
+                        {
+                            <li>@clash.Severity: @clash.Summary</li>
+                        }
+                    </ul>
+                    <div class="field-stack edit-fields">
+                        <textarea value="@GetEditText(item)" @onchange="args => SetEditText(item, args)" rows="2" maxlength="500"></textarea>
+                        <div class="command-row">
+                            <button type="button" @onclick="() => EditAsync(item)" disabled="@(!CanUseOnlineActions || IsSubmitting)">Edit</button>
+                            <button type="button" @onclick="() => ApproveRequested.InvokeAsync(item)" disabled="@(!CanUseOnlineActions || IsSubmitting || item.Candidate is null)">Approve</button>
+                            <button type="button" @onclick="() => RejectRequested.InvokeAsync(item)" disabled="@(!CanUseOnlineActions || IsSubmitting)">Reject</button>
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</section>
