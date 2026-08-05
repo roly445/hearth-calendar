@@ -1,0 +1,18 @@
+{
+  Login: {
+    StatusCode: OK,
+    HasSetCookie: true,
+    BodyContainsRawPassword: false
+  },
+  Logout: {
+    StatusCode: NoContent,
+    HasSetCookie: true,
+    BodyContainsRawPassword: false
+  },
+  SessionAfterLogout: {
+    StatusCode: Unauthorized,
+    Body: ,
+    HasSetCookie: false,
+    BodyContainsRawPassword: false
+  }
+}

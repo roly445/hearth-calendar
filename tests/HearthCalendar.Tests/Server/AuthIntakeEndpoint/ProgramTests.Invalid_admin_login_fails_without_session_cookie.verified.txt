@@ -1,0 +1,14 @@
+{
+  Login: {
+    StatusCode: Unauthorized,
+    Body: ,
+    HasSetCookie: false,
+    BodyContainsRawPassword: false
+  },
+  Session: {
+    StatusCode: Unauthorized,
+    Body: ,
+    HasSetCookie: false,
+    BodyContainsRawPassword: false
+  }
+}

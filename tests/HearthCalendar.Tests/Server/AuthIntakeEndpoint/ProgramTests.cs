@@ -27,7 +27,12 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
 
         var response = await client.GetAsync("/api/admin/session");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await Verifier.Verify(new
+        {
+            response.StatusCode,
+            Body = await response.Content.ReadAsStringAsync(),
+            HasSetCookie = HasSetCookie(response)
+        });
     }
 
     [Fact]
@@ -52,7 +57,12 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
 
         var response = await client.GetAsync("/api/admin/session");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await Verifier.Verify(new
+        {
+            response.StatusCode,
+            Body = await response.Content.ReadAsStringAsync(),
+            HasSetCookie = HasSetCookie(response)
+        });
     }
 
     [Fact]
@@ -66,12 +76,24 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
             "/api/admin/login",
             new AdminLoginRequest(AdminUsername, AdminPassword));
         var session = await client.GetAsync("/api/admin/session");
-        var body = await session.Content.ReadFromJsonAsync<AdminSessionResponse>();
 
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, session.StatusCode);
-        Assert.True(body?.IsAuthenticated);
-        Assert.Equal("Calendar Admin", body?.DisplayName);
+        await Verifier.Verify(new
+        {
+            Login = new
+            {
+                login.StatusCode,
+                Body = await login.Content.ReadFromJsonAsync<AdminLoginResponse>(),
+                HasSetCookie = HasSetCookie(login),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(login)
+            },
+            Session = new
+            {
+                session.StatusCode,
+                Body = await session.Content.ReadFromJsonAsync<AdminSessionResponse>(),
+                HasSetCookie = HasSetCookie(session),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(session)
+            }
+        });
     }
 
     [Fact]
@@ -86,8 +108,23 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
             new AdminLoginRequest(AdminUsername, "wrong-password"));
         var session = await client.GetAsync("/api/admin/session");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, login.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
+        await Verifier.Verify(new
+        {
+            Login = new
+            {
+                login.StatusCode,
+                Body = await login.Content.ReadAsStringAsync(),
+                HasSetCookie = HasSetCookie(login),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(login)
+            },
+            Session = new
+            {
+                session.StatusCode,
+                Body = await session.Content.ReadAsStringAsync(),
+                HasSetCookie = HasSetCookie(session),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(session)
+            }
+        });
     }
 
     [Fact]
@@ -103,8 +140,38 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
         var logout = await client.PostAsync("/api/admin/logout", null);
         var session = await client.GetAsync("/api/admin/session");
 
-        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, session.StatusCode);
+        await Verifier.Verify(new
+        {
+            Login = new
+            {
+                login.StatusCode,
+                HasSetCookie = HasSetCookie(login),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(login)
+            },
+            Logout = new
+            {
+                logout.StatusCode,
+                HasSetCookie = HasSetCookie(logout),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(logout)
+            },
+            SessionAfterLogout = new
+            {
+                session.StatusCode,
+                Body = await session.Content.ReadAsStringAsync(),
+                HasSetCookie = HasSetCookie(session),
+                BodyContainsRawPassword = await ContainsRawPasswordAsync(session)
+            }
+        });
+    }
+
+    private static bool HasSetCookie(HttpResponseMessage response) =>
+        response.Headers.Contains("Set-Cookie");
+
+    private static async Task<bool> ContainsRawPasswordAsync(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+
+        return body.Contains(AdminPassword, StringComparison.Ordinal) ||
+            body.Contains("wrong-password", StringComparison.Ordinal);
     }
 }

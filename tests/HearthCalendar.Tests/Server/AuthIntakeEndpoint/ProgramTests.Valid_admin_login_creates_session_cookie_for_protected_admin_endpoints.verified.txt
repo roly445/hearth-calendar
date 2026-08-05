@@ -1,0 +1,19 @@
+{
+  Login: {
+    StatusCode: OK,
+    Body: {
+      DisplayName: Calendar Admin
+    },
+    HasSetCookie: true,
+    BodyContainsRawPassword: false
+  },
+  Session: {
+    StatusCode: OK,
+    Body: {
+      IsAuthenticated: true,
+      DisplayName: Calendar Admin
+    },
+    HasSetCookie: false,
+    BodyContainsRawPassword: false
+  }
+}
