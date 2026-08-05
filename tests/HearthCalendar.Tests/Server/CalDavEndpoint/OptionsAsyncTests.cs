@@ -36,13 +36,11 @@ public sealed class OptionsAsyncTests : CalDavEndpointTestBase
             HttpMethod.Options,
             "/caldav/calendars/smart-inbox-archive/"));
 
-        Assert.Equal(HttpStatusCode.NoContent, root.StatusCode);
-        Assert.Equal("OPTIONS, PROPFIND", root.Content.Headers.Allow.ToString());
-        Assert.Equal("1, 3, calendar-access", root.Headers.GetValues("DAV").Single());
-        Assert.Equal(HttpStatusCode.NoContent, smartInbox.StatusCode);
-        Assert.Equal("OPTIONS, PROPFIND, PUT", smartInbox.Content.Headers.Allow.ToString());
-        Assert.Equal("1, 3, calendar-access", smartInbox.Headers.GetValues("DAV").Single());
-        Assert.Equal(HttpStatusCode.NoContent, smartInboxArchive.StatusCode);
-        Assert.Equal("OPTIONS, PROPFIND", smartInboxArchive.Content.Headers.Allow.ToString());
+        await Verifier.Verify(new
+        {
+            Root = EndpointSnapshot.ForResponse(root),
+            SmartInbox = EndpointSnapshot.ForResponse(smartInbox),
+            SmartInboxArchive = EndpointSnapshot.ForResponse(smartInboxArchive)
+        });
     }
 }

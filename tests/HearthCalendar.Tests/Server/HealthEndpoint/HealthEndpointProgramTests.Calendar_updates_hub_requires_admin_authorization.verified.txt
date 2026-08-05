@@ -1,0 +1,4 @@
+﻿{
+  RawText: /hubs/calendar-updates,
+  Policy: Admin
+}

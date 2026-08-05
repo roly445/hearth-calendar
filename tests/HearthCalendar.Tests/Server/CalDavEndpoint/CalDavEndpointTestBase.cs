@@ -573,7 +573,7 @@ public abstract class CalDavEndpointTestBase
         calDavObject.ItemId,
         HasIntentLink = calDavObject.IntentId.Value != Guid.Empty,
         HasContentHash = !string.IsNullOrWhiteSpace(calDavObject.ContentHash),
-        calDavObject.ETag,
+        ETag = string.IsNullOrWhiteSpace(calDavObject.ETag) ? string.Empty : "stable-etag",
         HasCreatedAt = calDavObject.CreatedAt != default,
         HasUpdatedAt = calDavObject.UpdatedAt != default,
         ContainsRawCalDavPassword = calDavObject.ContentHash.Contains(CalDavPassword, StringComparison.Ordinal),

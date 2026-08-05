@@ -1,31 +1,47 @@
-﻿[
-  {
-    Href: /caldav/calendars/combined/stable-event.ics,
-    ETag: stable-etag,
-    Event: {
-      CATEGORIES: Birthday,
-      DTEND;VALUE=DATE: 20260803,
-      DTSTAMP: 20260730T000000Z,
-      DTSTART;VALUE=DATE: 20260802,
-      RRULE: FREQ=YEARLY,
-      SUMMARY: Adult B birthday,
-      TRANSP: TRANSPARENT,
-      UID: stable-uid@hearth-calendar,
-      X-MICROSOFT-CDO-BUSYSTATUS: FREE
-    }
+﻿{
+  Response: {
+    StatusCode: MultiStatus,
+    ContentType: application/xml,
+    Allow: ,
+    Dav: 1, 3, calendar-access,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
   },
-  {
-    Href: /caldav/calendars/combined/stable-event.ics,
-    ETag: stable-etag,
-    Event: {
-      CATEGORIES: Personal,
-      DTEND: 20260801T093000,
-      DTSTAMP: 20260730T000000Z,
-      DTSTART: 20260801T090000,
-      SUMMARY: Dentist for Adult A,
-      TRANSP: OPAQUE,
-      UID: stable-uid@hearth-calendar,
-      X-MICROSOFT-CDO-BUSYSTATUS: BUSY
+  Query: {
+    From: Date_1,
+    To: Date_2,
+    Calendar: Combined
+  },
+  Report: [
+    {
+      Href: /caldav/calendars/combined/stable-event.ics,
+      ETag: stable-etag,
+      Event: {
+        CATEGORIES: Birthday,
+        DTEND;VALUE=DATE: 20260803,
+        DTSTAMP: 20260730T000000Z,
+        DTSTART;VALUE=DATE: 20260802,
+        RRULE: FREQ=YEARLY,
+        SUMMARY: Adult B birthday,
+        TRANSP: TRANSPARENT,
+        UID: stable-uid@hearth-calendar,
+        X-MICROSOFT-CDO-BUSYSTATUS: FREE
+      }
+    },
+    {
+      Href: /caldav/calendars/combined/stable-event.ics,
+      ETag: stable-etag,
+      Event: {
+        CATEGORIES: Personal,
+        DTEND: 20260801T093000,
+        DTSTAMP: 20260730T000000Z,
+        DTSTART: 20260801T090000,
+        SUMMARY: Dentist for Adult A,
+        TRANSP: OPAQUE,
+        UID: stable-uid@hearth-calendar,
+        X-MICROSOFT-CDO-BUSYSTATUS: BUSY
+      }
     }
-  }
-]
+  ]
+}

@@ -1,0 +1,19 @@
+﻿{
+  Response: {
+    StatusCode: OK,
+    ContentType: text/calendar,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  },
+  Query: {
+    From: Date_1,
+    To: Date_2
+  },
+  EventSummaries: [
+    Dentist for Adult A,
+    Family planning
+  ]
+}

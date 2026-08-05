@@ -32,19 +32,11 @@ public sealed class PropFindAsyncTests : CalDavEndpointTestBase
         var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
         var discovery = NormalizeDiscoveryXml(document);
 
-        Assert.Equal((HttpStatusCode)207, response.StatusCode);
-        Assert.Contains(discovery, item =>
-            item.Href == "/caldav/calendars/adult-a/" &&
-            item.Privileges.SequenceEqual(["read"]));
-        Assert.Contains(discovery, item =>
-            item.Href == "/caldav/calendars/combined/" &&
-            item.Privileges.SequenceEqual(["read"]));
-        Assert.Contains(discovery, item =>
-            item.Href == "/caldav/calendars/smart-inbox/" &&
-            item.Privileges.Count == 0);
-        Assert.Contains(discovery, item =>
-            item.Href == "/caldav/calendars/adult-b/" &&
-            item.Privileges.Count == 0);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Discovery = discovery
+        });
     }
 
     [Fact]
@@ -58,8 +50,11 @@ public sealed class PropFindAsyncTests : CalDavEndpointTestBase
         var response = await client.SendAsync(PropFind("/caldav/calendars/", depth: "1"));
         var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        Assert.Equal((HttpStatusCode)207, response.StatusCode);
-        await Verifier.Verify(NormalizeDiscoveryXml(document));
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Discovery = NormalizeDiscoveryXml(document)
+        });
     }
 
     [Fact]
@@ -73,10 +68,11 @@ public sealed class PropFindAsyncTests : CalDavEndpointTestBase
         var response = await client.SendAsync(PropFind("/caldav/"));
         var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        Assert.Equal((HttpStatusCode)207, response.StatusCode);
-        Assert.Equal("application/xml", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal("1, 3, calendar-access", response.Headers.GetValues("DAV").Single());
-        await Verifier.Verify(NormalizeDiscoveryXml(document));
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Discovery = NormalizeDiscoveryXml(document)
+        });
     }
 
     [Fact]
@@ -91,10 +87,11 @@ public sealed class PropFindAsyncTests : CalDavEndpointTestBase
         var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
         var discovery = NormalizeDiscoveryXml(document);
 
-        Assert.Equal((HttpStatusCode)207, response.StatusCode);
-        Assert.Contains(discovery, item =>
-            item.Href == "/caldav/calendars/smart-inbox/" &&
-            item.Privileges.SequenceEqual(["write"]));
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Discovery = discovery
+        });
     }
 
     [Fact]
@@ -110,9 +107,12 @@ public sealed class PropFindAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal((HttpStatusCode)207, discovery.StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, write.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Discovery = EndpointSnapshot.ForResponse(discovery),
+            Write = EndpointSnapshot.ForResponse(write),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        });
     }
 }

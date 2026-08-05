@@ -32,7 +32,8 @@ public sealed class MapCalDavEndpointsTests : CalDavEndpointTestBase
 
         var response = await client.SendAsync(PropFind("/caldav/calendars/"));
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await Verifier.Verify(EndpointSnapshot.ForResponse(response))
+            .UseParameters(token);
     }
 
     [Theory]
@@ -49,9 +50,12 @@ public sealed class MapCalDavEndpointsTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        }).UseParameters(token);
     }
 
     [Fact]
@@ -63,7 +67,6 @@ public sealed class MapCalDavEndpointsTests : CalDavEndpointTestBase
 
         var response = await client.SendAsync(PropFind("/caldav/"));
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Equal("Basic realm=\"Hearth Calendar CalDAV\"", response.Headers.WwwAuthenticate.ToString());
+        await Verifier.Verify(EndpointSnapshot.ForResponse(response));
     }
 }

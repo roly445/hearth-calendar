@@ -1,70 +1,35 @@
 ﻿{
-  StatusCode: Created,
-  Location: /caldav/calendars/smart-inbox/family-planning.ics,
-  ETag: "4f1d15a3b941578ead1d87b45116209038b1b26443e4319452eab43019c44834",
-  Body: {
-    IntentId: Guid_1,
-    Status: accepted
+  First: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
   },
-  StoredIntents: [
-    {
-      HasId: true,
-      Source: CalDav,
-      SourceMode: Passive,
-      RawText: Family planning,
-      Payload: {
-        Date: 2026-09-01,
-        StartTime: 10:00:00,
-        EndTime: 11:00:00
-      },
-      HasSubmittedAt: true,
-      SubmittedBy: caldav-app
-    }
-  ],
-  Audits: [
-    {
-      Action: IntakeIntentSubmitted,
-      Actor: caldav-app,
-      HasOccurredAt: true,
-      Summary: CalDAV Smart Inbox intent submitted.,
-      HasIntentLink: true,
-      Metadata: {
-        calendar: smart-inbox,
-        etag: "4f1d15a3b941578ead1d87b45116209038b1b26443e4319452eab43019c44834",
-        itemId: family-planning,
-        mode: Passive,
-        source: CalDav,
-        tokenKind: caldav
-      },
-      ContainsRawCalDavPassword: false,
-      ContainsRawWriteToken: false,
-      ContainsRawFeedToken: false
-    },
-    {
-      Action: EventApproved,
-      Actor: system,
-      HasOccurredAt: true,
-      Summary: Intent Approved.,
-      HasIntentLink: true,
-      Metadata: {
-        mode: Passive,
-        source: CalDav
-      },
-      ContainsRawCalDavPassword: false,
-      ContainsRawWriteToken: false,
-      ContainsRawFeedToken: false
-    }
-  ],
+  Changed: {
+    StatusCode: OK,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: false
+  },
+  ETagChanged: true,
+  StoredIntentCount: 2,
+  AuditCount: 5,
   Decisions: [
     {
-      Status: Approved,
+      Status: Rejected,
       Mode: Automatic,
       Event: {
         Title: Family planning,
         PrimaryCalendar: Family,
         Category: Family,
         BusyStatus: Busy,
-        ReviewStatus: Approved,
+        ReviewStatus: Rejected,
         Time: {
           Date: 2026-09-01,
           StartTime: 10:00:00,
@@ -96,19 +61,60 @@
         }
       ],
       HasAiSuggestionLink: false
+    },
+    {
+      Status: Approved,
+      Mode: Automatic,
+      Event: {
+        Title: Updated family planning,
+        PrimaryCalendar: Family,
+        Category: Family,
+        BusyStatus: Busy,
+        ReviewStatus: Approved,
+        Time: {
+          Date: 2026-09-01,
+          StartTime: 12:00:00,
+          EndTime: 13:00:00,
+          IsAllDay: false
+        },
+        Participants: [
+          {
+            PersonId: adult-a,
+            Role: Attendee,
+            BusyStatus: Busy
+          },
+          {
+            PersonId: adult-b,
+            Role: Attendee,
+            BusyStatus: Busy
+          },
+          {
+            PersonId: child,
+            Role: Attendee,
+            BusyStatus: Busy
+          }
+        ]
+      },
+      Reasons: [
+        {
+          Code: DeterministicMatch,
+          Message: The deterministic review rules matched the intent.
+        }
+      ],
+      HasAiSuggestionLink: false
     }
   ],
   ApprovedEvents: [
     {
-      Title: Family planning,
+      Title: Updated family planning,
       PrimaryCalendar: Family,
       Category: Family,
       BusyStatus: Busy,
       ReviewStatus: Approved,
       Time: {
         Date: 2026-09-01,
-        StartTime: 10:00:00,
-        EndTime: 11:00:00,
+        StartTime: 12:00:00,
+        EndTime: 13:00:00,
         IsAllDay: false
       },
       Participants: [
@@ -144,5 +150,7 @@
       ContainsRawWriteToken: false,
       ContainsRawFeedToken: false
     }
-  ]
+  ],
+  ObjectPointsAtLatestIntent: true,
+  ObjectETagMatchesResponse: true
 }

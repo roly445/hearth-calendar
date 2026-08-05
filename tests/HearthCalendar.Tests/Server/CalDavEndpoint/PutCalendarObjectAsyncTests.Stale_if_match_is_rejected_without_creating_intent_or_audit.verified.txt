@@ -1,0 +1,23 @@
+﻿{
+  First: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  Response: {
+    StatusCode: PreconditionFailed,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: false
+  },
+  ETagMatchesExisting: true,
+  StoredIntentCount: 1,
+  AuditCount: 2,
+  ObjectCount: 1
+}

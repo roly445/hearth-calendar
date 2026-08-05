@@ -1,0 +1,12 @@
+﻿{
+  Response: {
+    StatusCode: NoContent,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  },
+  HasAllowOrigin: false,
+  HasAllowCredentials: false
+}

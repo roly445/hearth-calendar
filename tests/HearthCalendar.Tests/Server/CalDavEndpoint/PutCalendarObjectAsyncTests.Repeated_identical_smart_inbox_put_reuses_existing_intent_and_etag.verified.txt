@@ -1,0 +1,26 @@
+﻿{
+  First: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  Retry: {
+    StatusCode: NoContent,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: false
+  },
+  ETagReused: true,
+  StoredIntentCount: 1,
+  AuditCount: 2,
+  DecisionCount: 1,
+  ApprovedEventCount: 1,
+  ObjectCount: 1,
+  NotificationCount: 2
+}

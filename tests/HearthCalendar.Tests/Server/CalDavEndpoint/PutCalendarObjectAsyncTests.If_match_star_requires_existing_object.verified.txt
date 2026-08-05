@@ -1,0 +1,10 @@
+﻿{
+  Response: {
+    StatusCode: PreconditionFailed,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  }
+}

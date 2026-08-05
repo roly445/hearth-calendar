@@ -41,14 +41,14 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
                 END:VCALENDAR
                 """));
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        var decision = Assert.Single(store.Decisions);
-        Assert.Equal(ReviewStatus.Staged, decision.Status);
-        Assert.Contains(decision.Reasons, reason => reason.Code == DecisionReasonCode.AmbiguousIntent);
-        Assert.Empty(store.ApprovedEvents);
-        Assert.Contains(store.Audits, audit => audit.Action == AuditAction.EventStaged);
-        Assert.Contains(notifier.Published, notification => notification.Type == CalendarUiNotifications.ReviewQueueChanged);
-        Assert.DoesNotContain(notifier.Published, notification => notification.Type == CalendarUiNotifications.CalendarEventsChanged);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponseWithStableETag(response),
+            Decisions = store.Decisions.Select(DescribeDecision),
+            ApprovedEventCount = store.ApprovedEvents.Count,
+            Audits = store.Audits.Select(DescribeAudit),
+            Notifications = notifier.Published.Select(notification => notification.Type)
+        });
     }
 
     [Fact]
@@ -83,12 +83,13 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
                 END:VCALENDAR
                 """));
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.Equal(1, provider.Calls);
-        var decision = Assert.Single(store.Decisions);
-        Assert.Equal(DecisionMode.AssistedByAi, decision.Mode);
-        Assert.Equal(ReviewStatus.Approved, decision.Status);
-        Assert.Single(store.ApprovedEvents);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponseWithStableETag(response),
+            provider.Calls,
+            Decisions = store.Decisions.Select(DescribeDecision),
+            ApprovedEvents = store.ApprovedEvents.Select(DescribeEvent)
+        });
     }
 
     [Fact]
@@ -114,18 +115,19 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
                 END:VCALENDAR
                 """));
 
-        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
-        Assert.NotEqual(first.Headers.ETag, changed.Headers.ETag);
-        Assert.Equal(2, store.Intents.Count);
-        Assert.Equal(5, store.Audits.Count);
-        Assert.Equal(2, store.Decisions.Count);
-        Assert.Single(store.ApprovedEvents);
-        Assert.Contains(store.Decisions, decision => decision.Status == ReviewStatus.Rejected);
-        Assert.Contains(store.Decisions, decision => decision.Status == ReviewStatus.Approved);
-        var storedObject = Assert.Single(store.Objects.Values);
-        Assert.Equal(store.Intents[1].Id, storedObject.IntentId);
-        Assert.Equal(changed.Headers.ETag?.ToString(), storedObject.ETag);
+        await Verifier.Verify(new
+        {
+            First = EndpointSnapshot.ForResponseWithStableETag(first),
+            Changed = EndpointSnapshot.ForResponseWithStableETag(changed),
+            ETagChanged = first.Headers.ETag?.ToString() != changed.Headers.ETag?.ToString(),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            Decisions = store.Decisions.Select(DescribeDecision),
+            ApprovedEvents = store.ApprovedEvents.Select(DescribeEvent),
+            Objects = store.Objects.Values.Select(DescribeObject),
+            ObjectPointsAtLatestIntent = store.Objects.Values.Single().IntentId == store.Intents[1].Id,
+            ObjectETagMatchesResponse = store.Objects.Values.Single().ETag == changed.Headers.ETag?.ToString()
+        });
     }
 
     [Fact]
@@ -171,10 +173,13 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
                 END:VCALENDAR
                 """));
 
-        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
-        Assert.Equal(1, provider.Calls);
-        Assert.Single(store.Decisions);
+        await Verifier.Verify(new
+        {
+            First = EndpointSnapshot.ForResponseWithStableETag(first),
+            Retry = EndpointSnapshot.ForResponseWithStableETag(retry),
+            provider.Calls,
+            DecisionCount = store.Decisions.Count
+        });
     }
 
     [Fact]
@@ -192,10 +197,13 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
 
         var response = await client.SendAsync(write);
 
-        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
-        Assert.Empty(store.Objects);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            ObjectCount = store.Objects.Count
+        });
     }
 
     [Fact]
@@ -224,11 +232,15 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
 
         var response = await client.SendAsync(changed);
 
-        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
-        Assert.Equal(first.Headers.ETag, response.Headers.ETag);
-        Assert.Single(store.Intents);
-        Assert.Equal(2, store.Audits.Count);
-        Assert.Single(store.Objects);
+        await Verifier.Verify(new
+        {
+            First = EndpointSnapshot.ForResponseWithStableETag(first),
+            Response = EndpointSnapshot.ForResponseWithStableETag(response),
+            ETagMatchesExisting = first.Headers.ETag?.ToString() == response.Headers.ETag?.ToString(),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            ObjectCount = store.Objects.Count
+        });
     }
 
     [Fact]
@@ -249,11 +261,15 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
 
         var response = await client.SendAsync(retry);
 
-        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
-        Assert.Equal(first.Headers.ETag, response.Headers.ETag);
-        Assert.Single(store.Intents);
-        Assert.Equal(2, store.Audits.Count);
-        Assert.Single(store.Objects);
+        await Verifier.Verify(new
+        {
+            First = EndpointSnapshot.ForResponseWithStableETag(first),
+            Response = EndpointSnapshot.ForResponseWithStableETag(response),
+            ETagMatchesExisting = first.Headers.ETag?.ToString() == response.Headers.ETag?.ToString(),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            ObjectCount = store.Objects.Count
+        });
     }
 
     [Fact]
@@ -269,9 +285,12 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(oversizedBody));
 
-        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        });
     }
 
     [Fact]
@@ -290,15 +309,18 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
-        Assert.Equal(HttpStatusCode.NoContent, retry.StatusCode);
-        Assert.Equal(first.Headers.ETag, retry.Headers.ETag);
-        Assert.Single(store.Intents);
-        Assert.Equal(2, store.Audits.Count);
-        Assert.Single(store.Decisions);
-        Assert.Single(store.ApprovedEvents);
-        Assert.Single(store.Objects);
-        Assert.Equal(2, notifier.Published.Count);
+        await Verifier.Verify(new
+        {
+            First = EndpointSnapshot.ForResponseWithStableETag(first),
+            Retry = EndpointSnapshot.ForResponseWithStableETag(retry),
+            ETagReused = first.Headers.ETag?.ToString() == retry.Headers.ETag?.ToString(),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            DecisionCount = store.Decisions.Count,
+            ApprovedEventCount = store.ApprovedEvents.Count,
+            ObjectCount = store.Objects.Count,
+            NotificationCount = notifier.Published.Count
+        });
     }
 
     [Fact]
@@ -316,14 +338,15 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal(HttpStatusCode.Created, upper.StatusCode);
-        Assert.Equal(HttpStatusCode.Created, lower.StatusCode);
-        Assert.Equal(2, store.Intents.Count);
-        Assert.Equal(4, store.Audits.Count);
-        Assert.Equal(2, store.Decisions.Count);
-        Assert.Equal(2, store.Objects.Count);
-        Assert.Contains("smart-inbox/Family-Planning", store.Objects.Keys);
-        Assert.Contains("smart-inbox/family-planning", store.Objects.Keys);
+        await Verifier.Verify(new
+        {
+            Upper = EndpointSnapshot.ForResponseWithStableETag(upper),
+            Lower = EndpointSnapshot.ForResponseWithStableETag(lower),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            DecisionCount = store.Decisions.Count,
+            Objects = store.Objects.Keys.Order().ToArray()
+        });
     }
 
     [Fact]
@@ -375,10 +398,12 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
-        Assert.True(notifier.StoreHadPersistedDecisionWhenPublished);
-        Assert.Contains(notifier.Published, notification => notification.Type == CalendarUiNotifications.ReviewQueueChanged);
-        Assert.Contains(notifier.Published, notification => notification.Type == CalendarUiNotifications.CalendarEventsChanged);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponseWithStableETag(response),
+            notifier.StoreHadPersistedDecisionWhenPublished,
+            Notifications = notifier.Published.Select(notification => notification.Type)
+        });
     }
 
     [Theory]
@@ -400,9 +425,13 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/smart-inbox/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal(expectedStatusCode, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            ExpectedStatusCode = expectedStatusCode,
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        }).UseParameters(password ?? "missing", expectedStatusCode);
     }
 
     [Fact]
@@ -431,11 +460,15 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
 
         var response = await client.SendAsync(changed);
 
-        Assert.Equal(HttpStatusCode.PreconditionFailed, response.StatusCode);
-        Assert.Equal(first.Headers.ETag, response.Headers.ETag);
-        Assert.Single(store.Intents);
-        Assert.Equal(2, store.Audits.Count);
-        Assert.Single(store.Objects);
+        await Verifier.Verify(new
+        {
+            First = EndpointSnapshot.ForResponseWithStableETag(first),
+            Response = EndpointSnapshot.ForResponseWithStableETag(response),
+            ETagMatchesExisting = first.Headers.ETag?.ToString() == response.Headers.ETag?.ToString(),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count,
+            ObjectCount = store.Objects.Count
+        });
     }
 
     [Fact]
@@ -458,9 +491,12 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
                 END:VCALENDAR
                 """));
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        });
     }
 
     [Fact]
@@ -475,8 +511,11 @@ public sealed class PutCalendarObjectAsyncTests : CalDavEndpointTestBase
             "/caldav/calendars/adult-a/family-planning.ics",
             IcsContent(BasicIcs()));
 
-        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        });
     }
 }

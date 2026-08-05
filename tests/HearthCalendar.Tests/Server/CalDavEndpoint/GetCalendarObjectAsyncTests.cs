@@ -39,8 +39,11 @@ public sealed class GetCalendarObjectAsyncTests : CalDavEndpointTestBase
             <C:calendar-query xmlns:C="urn:ietf:params:xml:ns:caldav" />
             """));
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Empty(store.Queries);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            QueryCount = store.Queries.Count
+        });
     }
 
     [Fact]
@@ -73,12 +76,10 @@ public sealed class GetCalendarObjectAsyncTests : CalDavEndpointTestBase
         var content = await response.Content.ReadAsStringAsync();
         var parsed = IcsAssertions.Parse(content);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("text/calendar", response.Content.Headers.ContentType?.MediaType);
-        Assert.NotNull(response.Headers.ETag);
         var parsedEvent = Assert.Single(parsed.Events);
         await Verifier.Verify(new
         {
+            Response = EndpointSnapshot.ForResponse(response),
             Calendar = parsed.CalendarProperties,
             Event = NormalizeIcsEvent(parsedEvent.Properties)
         });

@@ -1,0 +1,67 @@
+﻿{
+  Response: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  Calls: 1,
+  Decisions: [
+    {
+      Status: Approved,
+      Mode: AssistedByAi,
+      Event: {
+        Title: Adult A appointment,
+        PrimaryCalendar: AdultA,
+        Category: Personal,
+        BusyStatus: Busy,
+        ReviewStatus: Approved,
+        Time: {
+          Date: 2026-09-01,
+          StartTime: 10:00:00,
+          EndTime: 11:00:00,
+          IsAllDay: false
+        },
+        Participants: [
+          {
+            PersonId: adult-a,
+            Role: Attendee,
+            BusyStatus: Busy
+          }
+        ]
+      },
+      Reasons: [
+        {
+          Code: AiSuggestionApplied,
+          Message: AI suggestion resolved an allowed ambiguous intent.
+        }
+      ],
+      HasAiSuggestionLink: true
+    }
+  ],
+  ApprovedEvents: [
+    {
+      Title: Adult A appointment,
+      PrimaryCalendar: AdultA,
+      Category: Personal,
+      BusyStatus: Busy,
+      ReviewStatus: Approved,
+      Time: {
+        Date: 2026-09-01,
+        StartTime: 10:00:00,
+        EndTime: 11:00:00,
+        IsAllDay: false
+      },
+      Participants: [
+        {
+          PersonId: adult-a,
+          Role: Attendee,
+          BusyStatus: Busy
+        }
+      ]
+    }
+  ]
+}

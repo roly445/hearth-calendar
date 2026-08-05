@@ -1,0 +1,10 @@
+﻿{
+  Response: {
+    StatusCode: RequestEntityTooLarge,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  }
+}

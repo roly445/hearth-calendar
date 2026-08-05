@@ -1,0 +1,11 @@
+﻿{
+  Response: {
+    StatusCode: BadRequest,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  }
+}

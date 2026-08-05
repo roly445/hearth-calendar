@@ -1,0 +1,61 @@
+﻿{
+  Response: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  Decisions: [
+    {
+      Status: Staged,
+      Mode: Automatic,
+      Reasons: [
+        {
+          Code: AmbiguousIntent,
+          Message: The intent does not identify enough calendar details.
+        }
+      ],
+      HasAiSuggestionLink: false
+    }
+  ],
+  Audits: [
+    {
+      Action: IntakeIntentSubmitted,
+      Actor: caldav-app,
+      HasOccurredAt: true,
+      Summary: CalDAV Smart Inbox intent submitted.,
+      HasIntentLink: true,
+      Metadata: {
+        calendar: smart-inbox,
+        etag: "a1eecde63f938a4d24cef425dbeca4b22425041f4766c6847e6c3b15f75f9cc8",
+        itemId: school-trip,
+        mode: Passive,
+        source: CalDav,
+        tokenKind: caldav
+      },
+      ContainsRawCalDavPassword: false,
+      ContainsRawWriteToken: false,
+      ContainsRawFeedToken: false
+    },
+    {
+      Action: EventStaged,
+      Actor: system,
+      HasOccurredAt: true,
+      Summary: Intent Staged.,
+      HasIntentLink: true,
+      Metadata: {
+        mode: Passive,
+        source: CalDav
+      },
+      ContainsRawCalDavPassword: false,
+      ContainsRawWriteToken: false,
+      ContainsRawFeedToken: false
+    }
+  ],
+  Notifications: [
+    ReviewQueueChanged
+  ]
+}

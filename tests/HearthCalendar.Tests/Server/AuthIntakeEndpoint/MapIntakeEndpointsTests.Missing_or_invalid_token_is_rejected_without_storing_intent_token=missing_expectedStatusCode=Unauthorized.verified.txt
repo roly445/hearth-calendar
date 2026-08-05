@@ -1,0 +1,11 @@
+﻿{
+  ExpectedStatusCode: Unauthorized,
+  Response: {
+    StatusCode: Unauthorized,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  }
+}

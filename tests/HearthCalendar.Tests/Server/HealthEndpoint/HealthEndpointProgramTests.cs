@@ -85,8 +85,12 @@ public sealed class HealthEndpointProgramTests : HealthEndpointTestBase
 
         var response = await client.SendAsync(request);
 
-        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
-        Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            HasAllowOrigin = response.Headers.Contains("Access-Control-Allow-Origin"),
+            HasAllowCredentials = response.Headers.Contains("Access-Control-Allow-Credentials")
+        });
     }
 
     [Fact]
@@ -103,12 +107,12 @@ public sealed class HealthEndpointProgramTests : HealthEndpointTestBase
 
         var response = await client.SendAsync(request);
 
-        Assert.Equal(
-            "https://calendar.example.home",
-            response.Headers.GetValues("Access-Control-Allow-Origin").Single());
-        Assert.Equal(
-            "true",
-            response.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            AllowOrigin = response.Headers.GetValues("Access-Control-Allow-Origin").Single(),
+            AllowCredentials = response.Headers.GetValues("Access-Control-Allow-Credentials").Single()
+        });
     }
 
     [Fact]
@@ -127,7 +131,11 @@ public sealed class HealthEndpointProgramTests : HealthEndpointTestBase
                 StringComparison.Ordinal));
         var authorizeData = endpoint.Metadata.OfType<IAuthorizeData>().Single();
 
-        Assert.Equal(HearthCalendarAuth.AdminPolicy, authorizeData.Policy);
+        await Verifier.Verify(new
+        {
+            endpoint.RoutePattern.RawText,
+            authorizeData.Policy
+        });
     }
 
     private static bool AddsServerHeader()

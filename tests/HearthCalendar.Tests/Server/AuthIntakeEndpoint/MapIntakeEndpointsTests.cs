@@ -29,9 +29,12 @@ public sealed class MapIntakeEndpointsTests : AuthIntakeEndpointTestBase
             "/api/intake/event",
             new IntakeEventRequest("Family calendar planning"));
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        });
     }
 
     [Fact]
@@ -50,9 +53,12 @@ public sealed class MapIntakeEndpointsTests : AuthIntakeEndpointTestBase
                 SourceMode = 999
             });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        });
     }
 
     [Theory]
@@ -74,9 +80,13 @@ public sealed class MapIntakeEndpointsTests : AuthIntakeEndpointTestBase
             "/api/intake/event",
             new IntakeEventRequest("Family calendar planning"));
 
-        Assert.Equal(expectedStatusCode, response.StatusCode);
-        Assert.Empty(store.Intents);
-        Assert.Empty(store.Audits);
+        await Verifier.Verify(new
+        {
+            ExpectedStatusCode = expectedStatusCode,
+            Response = EndpointSnapshot.ForResponse(response),
+            StoredIntentCount = store.Intents.Count,
+            AuditCount = store.Audits.Count
+        }).UseParameters(token ?? "missing", expectedStatusCode);
     }
 
     [Fact]

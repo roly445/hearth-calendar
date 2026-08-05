@@ -1,0 +1,18 @@
+﻿{
+  Missing: {
+    StatusCode: Unauthorized,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  },
+  Invalid: {
+    StatusCode: Unauthorized,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  }
+}

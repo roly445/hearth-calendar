@@ -47,9 +47,11 @@ public sealed class ReportCalendarQueryAsyncTests : CalDavEndpointTestBase
             </C:calendar-query>
             """));
 
-        Assert.Equal((HttpStatusCode)207, response.StatusCode);
-        Assert.Equal(new DateOnly(2026, 8, 1), store.Queries.Single().From);
-        Assert.Equal(new DateOnly(2026, 8, 1), store.Queries.Single().To);
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Query = store.Queries.Single()
+        });
     }
 
     [Fact]
@@ -96,9 +98,11 @@ public sealed class ReportCalendarQueryAsyncTests : CalDavEndpointTestBase
             """));
         var document = XDocument.Parse(await response.Content.ReadAsStringAsync());
 
-        Assert.Equal((HttpStatusCode)207, response.StatusCode);
-        Assert.Equal(new DateOnly(2026, 8, 1), store.Queries.Single().From);
-        Assert.Equal(new DateOnly(2026, 8, 2), store.Queries.Single().To);
-        await Verifier.Verify(NormalizeReportXml(document));
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Query = store.Queries.Single(),
+            Report = NormalizeReportXml(document)
+        });
     }
 }
