@@ -1,0 +1,15 @@
+﻿{
+  Response: {
+    StatusCode: MultiStatus,
+    ContentType: application/xml,
+    Allow: ,
+    Dav: 1, 3, calendar-access,
+    WwwAuthenticate: ,
+    HasETag: false,
+    HasLocation: false
+  },
+  Query: {
+    From: Date_1,
+    To: Date_1
+  }
+}

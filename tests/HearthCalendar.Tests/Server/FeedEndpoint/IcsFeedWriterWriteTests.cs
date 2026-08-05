@@ -47,11 +47,10 @@ public sealed class IcsFeedWriterWriteTests : FeedEndpointTestBase
         var content = await response.Content.ReadAsStringAsync();
         var parsed = IcsAssertions.Parse(content);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("text/calendar", response.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(3, parsed.Events.Count);
         await Verifier.Verify(new
         {
+            Response = EndpointSnapshot.ForResponse(response),
+            EventCount = parsed.Events.Count,
             Calendar = parsed.CalendarProperties,
             Events = parsed.Events.Select(item => NormalizeEvent(item.Properties))
         });

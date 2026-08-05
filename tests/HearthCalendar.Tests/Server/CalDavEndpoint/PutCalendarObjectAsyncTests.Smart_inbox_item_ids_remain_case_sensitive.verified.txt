@@ -1,0 +1,27 @@
+﻿{
+  Upper: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  Lower: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  StoredIntentCount: 2,
+  AuditCount: 4,
+  DecisionCount: 2,
+  Objects: [
+    smart-inbox/family-planning,
+    smart-inbox/Family-Planning
+  ]
+}

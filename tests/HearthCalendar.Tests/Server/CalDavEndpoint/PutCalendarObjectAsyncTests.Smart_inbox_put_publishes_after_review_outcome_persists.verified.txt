@@ -1,0 +1,16 @@
+﻿{
+  Response: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  StoreHadPersistedDecisionWhenPublished: true,
+  Notifications: [
+    ReviewQueueChanged,
+    CalendarEventsChanged
+  ]
+}

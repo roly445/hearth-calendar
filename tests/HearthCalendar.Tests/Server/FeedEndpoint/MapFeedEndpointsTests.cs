@@ -23,8 +23,11 @@ public sealed class MapFeedEndpointsTests : FeedEndpointTestBase
         var missing = await client.GetAsync("/feeds/adult-a.ics");
         var invalid = await client.GetAsync("/feeds/adult-a.ics?token=wrong-token");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, invalid.StatusCode);
+        await Verifier.Verify(new
+        {
+            Missing = EndpointSnapshot.ForResponse(missing),
+            Invalid = EndpointSnapshot.ForResponse(invalid)
+        });
     }
 
     [Fact]
@@ -36,7 +39,7 @@ public sealed class MapFeedEndpointsTests : FeedEndpointTestBase
 
         var response = await client.GetAsync($"/feeds/family.ics?token={AdultAToken}");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await Verifier.Verify(EndpointSnapshot.ForResponse(response));
     }
 
     [Fact]
@@ -57,12 +60,15 @@ public sealed class MapFeedEndpointsTests : FeedEndpointTestBase
         var content = await response.Content.ReadAsStringAsync();
         var parsed = IcsAssertions.Parse(content);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(VirtualCalendar.AdultA, store.Queries.Single().Calendar);
-        Assert.Equal(["Dentist for Adult A", "Family planning"], parsed.Events
-            .Select(item => item.Properties["SUMMARY"])
-            .Order()
-            .ToArray());
+        await Verifier.Verify(new
+        {
+            Response = EndpointSnapshot.ForResponse(response),
+            Query = store.Queries.Single(),
+            EventSummaries = parsed.Events
+                .Select(item => item.Properties["SUMMARY"])
+                .Order()
+                .ToArray()
+        });
     }
 
     [Fact]
@@ -75,6 +81,6 @@ public sealed class MapFeedEndpointsTests : FeedEndpointTestBase
 
         var response = await client.GetAsync($"/feeds/adult-a.ics?token={AdultAToken}");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        await Verifier.Verify(EndpointSnapshot.ForResponse(response));
     }
 }

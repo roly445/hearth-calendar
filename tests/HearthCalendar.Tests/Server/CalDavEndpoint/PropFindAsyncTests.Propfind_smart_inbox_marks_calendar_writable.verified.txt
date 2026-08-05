@@ -10,14 +10,20 @@
   },
   Discovery: [
     {
-      Href: /caldav/,
+      Href: /caldav/calendars/smart-inbox/,
       Status: HTTP/1.1 200 OK,
-      DisplayName: Hearth Calendar CalDAV,
-      PrincipalHref: /caldav/principals/current/,
-      CalendarHomeSet: /caldav/calendars/,
+      DisplayName: Smart Inbox,
+      PrincipalHref: ,
+      CalendarHomeSet: ,
       ResourceTypes: [
-        collection,
-        principal
+        calendar,
+        collection
+      ],
+      Components: [
+        VEVENT
+      ],
+      Privileges: [
+        write
       ]
     }
   ]

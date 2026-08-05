@@ -1,0 +1,8 @@
+﻿{
+  StatusCode: Unauthorized,
+  Allow: ,
+  Dav: ,
+  WwwAuthenticate: Basic realm="Hearth Calendar CalDAV",
+  HasETag: false,
+  HasLocation: false
+}

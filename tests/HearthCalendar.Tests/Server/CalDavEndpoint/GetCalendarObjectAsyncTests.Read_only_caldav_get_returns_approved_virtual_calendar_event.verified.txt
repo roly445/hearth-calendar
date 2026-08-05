@@ -1,4 +1,13 @@
 ﻿{
+  Response: {
+    StatusCode: OK,
+    ContentType: text/calendar,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    HasETag: true,
+    HasLocation: false
+  },
   Calendar: {
     CALSCALE: GREGORIAN,
     PRODID: -//Hearth Calendar//EN,

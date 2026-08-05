@@ -1,0 +1,21 @@
+﻿{
+  First: {
+    StatusCode: Created,
+    ContentType: application/json,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: true
+  },
+  Retry: {
+    StatusCode: NoContent,
+    Allow: ,
+    Dav: ,
+    WwwAuthenticate: ,
+    ETag: stable-etag,
+    HasLocation: false
+  },
+  Calls: 1,
+  DecisionCount: 1
+}

@@ -1,0 +1,8 @@
+﻿{
+  StatusCode: Forbidden,
+  Allow: ,
+  Dav: ,
+  WwwAuthenticate: ,
+  HasETag: false,
+  HasLocation: false
+}
