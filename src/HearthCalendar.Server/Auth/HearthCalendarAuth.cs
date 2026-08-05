@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
+using HearthCalendar.Client.Contracts.Auth;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -44,6 +45,9 @@ public static class HearthCalendarAuth
             })
             .AddCookie(options =>
             {
+                options.Cookie.HttpOnly = true;
+                options.Cookie.SameSite = SameSiteMode.Strict;
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 options.Events.OnRedirectToLogin = context =>
                 {
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -107,11 +111,24 @@ public static class HearthCalendarAuth
 
 public sealed record HearthCalendarAuthOptions
 {
+    public IReadOnlyList<AdminUserOptions> AdminUsers { get; init; } = [];
+
     public IReadOnlyList<ClientTokenOptions> ClientTokens { get; init; } = [];
 
     public IReadOnlyList<FeedTokenOptions> FeedTokens { get; init; } = [];
 
     public IReadOnlyList<CalDavCredentialOptions> CalDavCredentials { get; init; } = [];
+}
+
+public sealed record AdminUserOptions
+{
+    public required string Username { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string PasswordHash { get; init; }
+
+    public IReadOnlyList<string> Scopes { get; init; } = [];
 }
 
 public sealed record ClientTokenOptions
@@ -173,6 +190,135 @@ public static class HearthCalendarSecretHasher
             Encoding.UTF8.GetBytes(candidate),
             Encoding.UTF8.GetBytes(hash));
     }
+}
+
+public static class HearthCalendarAdminPasswordHasher
+{
+    private const string Prefix = "pbkdf2-sha256";
+    private const int SaltBytes = 16;
+    private const int HashBytes = 32;
+    private const int DefaultIterations = 210_000;
+
+    public static string Hash(string password)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(password);
+
+        var salt = RandomNumberGenerator.GetBytes(SaltBytes);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(
+            Encoding.UTF8.GetBytes(password),
+            salt,
+            DefaultIterations,
+            HashAlgorithmName.SHA256,
+            HashBytes);
+
+        return string.Join(
+            ":",
+            Prefix,
+            DefaultIterations.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Convert.ToBase64String(salt),
+            Convert.ToBase64String(hash));
+    }
+
+    public static bool Matches(string password, string storedHash)
+    {
+        if (string.IsNullOrWhiteSpace(password) || string.IsNullOrWhiteSpace(storedHash))
+        {
+            return false;
+        }
+
+        var parts = storedHash.Split(':');
+        if (parts is not [Prefix, var iterationText, var saltText, var hashText] ||
+            !int.TryParse(iterationText, out var iterations))
+        {
+            return false;
+        }
+
+        byte[] salt;
+        byte[] expectedHash;
+        try
+        {
+            salt = Convert.FromBase64String(saltText);
+            expectedHash = Convert.FromBase64String(hashText);
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+
+        var candidateHash = Rfc2898DeriveBytes.Pbkdf2(
+            Encoding.UTF8.GetBytes(password),
+            salt,
+            iterations,
+            HashAlgorithmName.SHA256,
+            expectedHash.Length);
+
+        return CryptographicOperations.FixedTimeEquals(candidateHash, expectedHash);
+    }
+}
+
+public static class AdminAuthEndpoints
+{
+    public static IEndpointRouteBuilder MapAdminAuthEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapPost(
+                "/api/admin/login",
+                async (AdminLoginRequest request, HttpContext context, IOptions<HearthCalendarAuthOptions> options) =>
+                    await LoginAsync(request, context, options))
+            .AllowAnonymous();
+        endpoints.MapPost("/api/admin/logout", LogoutAsync)
+            .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
+        endpoints.MapGet("/api/admin/session", (ClaimsPrincipal user) => Session(user))
+            .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
+
+        return endpoints;
+    }
+
+    private static async Task<IResult> LoginAsync(
+        AdminLoginRequest request,
+        HttpContext context,
+        IOptions<HearthCalendarAuthOptions> options)
+    {
+        var admin = options.Value.AdminUsers.FirstOrDefault(candidate =>
+            string.Equals(candidate.Username, request.Username, StringComparison.Ordinal));
+        if (admin is null || !HearthCalendarAdminPasswordHasher.Matches(request.Password, admin.PasswordHash))
+        {
+            return Results.Unauthorized();
+        }
+
+        var scopes = admin.Scopes.Count == 0 ? [HearthCalendarAuth.AdminWebScope] : admin.Scopes;
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, admin.Username),
+            new(ClaimTypes.Name, admin.DisplayName),
+            new(HearthCalendarAuth.ScopeClaim, HearthCalendarAuth.AdminWebScope)
+        };
+        claims.AddRange(scopes
+            .Where(scope => !string.Equals(scope, HearthCalendarAuth.AdminWebScope, StringComparison.Ordinal))
+            .Select(scope => new Claim(HearthCalendarAuth.ScopeClaim, scope)));
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            claims,
+            CookieAuthenticationDefaults.AuthenticationScheme));
+        await context.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal,
+            new AuthenticationProperties
+            {
+                IsPersistent = false,
+                AllowRefresh = true
+            });
+
+        return Results.Ok(new AdminLoginResponse(admin.DisplayName));
+    }
+
+    private static async Task LogoutAsync(HttpContext context)
+    {
+        await context.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        context.Response.StatusCode = StatusCodes.Status204NoContent;
+    }
+
+    private static IResult Session(ClaimsPrincipal user) =>
+        Results.Ok(new AdminSessionResponse(true, user.FindFirstValue(ClaimTypes.Name)));
 }
 
 public sealed class HearthCalendarTokenAuthenticationHandler(

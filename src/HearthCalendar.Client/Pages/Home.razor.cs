@@ -35,8 +35,21 @@ public partial class Home : IAsyncDisposable
     [Inject]
     private OfflineCalendarStore OfflineStore { get; set; } = null!;
 
+    [Inject]
+    private AdminSessionClient SessionClient { get; set; } = null!;
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = null!;
+
     protected override async Task OnInitializedAsync()
     {
+        var session = await SessionClient.GetSessionAsync();
+        if (!session.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
         Updates.CalendarUpdated += OnCalendarUpdatedAsync;
         Updates.Reconnected += OnReconnectedAsync;
         OfflineStore.BrowserCameOnline += OnBrowserOnlineAsync;
@@ -157,6 +170,12 @@ public partial class Home : IAsyncDisposable
         createModel.DateText = "";
         createModel.StartTimeText = "";
         createModel.EndTimeText = "";
+    }
+
+    private async Task SignOutAsync()
+    {
+        await SessionClient.LogoutAsync();
+        Navigation.NavigateTo("/login");
     }
 
     private Task ApproveAsync(ReviewQueueItemDto item) =>

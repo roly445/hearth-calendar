@@ -19,6 +19,8 @@ public abstract class AuthIntakeEndpointTestBase
 {
     protected const string WriteToken = "test-write-token";
     protected const string FeedToken = "test-feed-token";
+    protected const string AdminUsername = "admin";
+    protected const string AdminPassword = "test-admin-password";
 
     protected static WebApplicationFactory<HearthCalendar.Server.Program> CreateFactory(
         RecordingHearthCalendarStore store) =>
@@ -31,6 +33,10 @@ public abstract class AuthIntakeEndpointTestBase
                     {
                         ["Database:ConnectionString"] = "Host=localhost;Database=hearth_calendar_test",
                         ["Database:SchemaName"] = "hearth_calendar_test",
+                        ["Auth:AdminUsers:0:Username"] = AdminUsername,
+                        ["Auth:AdminUsers:0:DisplayName"] = "Calendar Admin",
+                        ["Auth:AdminUsers:0:PasswordHash"] = HearthCalendarAdminPasswordHasher.Hash(AdminPassword),
+                        ["Auth:AdminUsers:0:Scopes:0"] = HearthCalendarAuth.AdminWebScope,
                         ["Auth:ClientTokens:0:Name"] = "home-assistant",
                         ["Auth:ClientTokens:0:SecretHash"] = HearthCalendarSecretHasher.Hash(WriteToken),
                         ["Auth:ClientTokens:0:Scopes:0"] = HearthCalendarAuth.IntakeWriteScope,

@@ -37,12 +37,13 @@ Human users access the web UI with cookie-based authentication.
 
 Initial approach:
 
-- one or more admin users stored in Marten
-- passwords hashed with ASP.NET Core password hashing
+- one or more admin users supplied through configuration
+- passwords stored as PBKDF2-SHA256 hashes
 - cookie sessions for the review/admin UI
 
 Potential later upgrade:
 
+- admin users stored in Marten with lifecycle metadata
 - external identity provider through OpenID Connect
 - Microsoft, Google, or another family-managed provider
 - richer roles if the app grows beyond simple admin usage
@@ -122,12 +123,11 @@ V1 can implement this as simple string scopes on credential documents. It does n
 | Endpoint | Auth | Required Scope / Policy |
 | --- | --- | --- |
 | `GET /health` | Anonymous | None. |
-| `GET /` | Admin cookie | `admin:web`. |
-| `GET /review` | Admin cookie | `admin:web`. |
-| `POST /review/{id}/approve` | Admin cookie | `admin:web`. |
-| `POST /review/{id}/reject` | Admin cookie | `admin:web`. |
-| `GET /events` | Admin cookie | `admin:web`. |
-| `POST /events` | Admin cookie | `admin:web`. |
+| `POST /api/admin/login` | Anonymous | Valid configured admin username/password. |
+| `POST /api/admin/logout` | Admin cookie | `admin:web`. |
+| `GET /api/admin/session` | Admin cookie | `admin:web`. |
+| `GET /` and Blazor fallback routes | Anonymous | App shell only; protected data still requires admin cookie. |
+| BluQube UI commands and queries | Admin cookie | `admin:web`. |
 | `POST /api/intake/event` | Client token | `intake:write`. |
 | `POST /api/intake/home-assistant/event` | Client token | `intake:write`. |
 | `GET /feeds/{calendar}.ics` | Feed token | matching `feed:*` scope. |
@@ -273,6 +273,16 @@ Configuration shape:
 
 ```json
 {
+  "Auth": {
+    "AdminUsers": [
+      {
+        "Username": "admin",
+        "DisplayName": "Calendar Admin",
+        "PasswordHash": "pbkdf2-sha256:<iterations>:<salt>:<hash>",
+        "Scopes": [ "admin:web" ]
+      }
+    ]
+  },
   "Security": {
     "Cors": {
       "AllowedOrigins": [
@@ -390,7 +400,8 @@ Implement auth in this order:
 
 - New endpoints require authorization by default.
 - `GET /health` is explicitly anonymous.
-- Admin web endpoints require an authenticated admin cookie.
+- Admin login is explicitly anonymous and issues an admin cookie only for valid configured credentials.
+- Admin session and logout endpoints require an authenticated admin cookie.
 - Home Assistant intake requires a client credential with `intake:write`.
 - Feed endpoints require a feed token scoped to the requested virtual calendar.
 - Feed tokens cannot call write endpoints.

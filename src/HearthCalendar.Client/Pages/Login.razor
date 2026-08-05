@@ -1,0 +1,27 @@
+@page "/login"
+
+<PageTitle>Sign In - Hearth Calendar</PageTitle>
+
+<section class="login-workspace">
+    <div class="login-panel">
+        <p class="eyebrow">Admin access</p>
+        <h1>Sign In</h1>
+        @if (!string.IsNullOrWhiteSpace(message))
+        {
+            <div class="notice">@message</div>
+        }
+        <EditForm Model="model" OnValidSubmit="SignInAsync">
+            <div class="field-stack">
+                <label>
+                    Username
+                    <input autocomplete="username" @bind="model.Username" />
+                </label>
+                <label>
+                    Password
+                    <input type="password" autocomplete="current-password" @bind="model.Password" />
+                </label>
+                <button class="primary-action" type="submit" disabled="@isSubmitting">Sign in</button>
+            </div>
+        </EditForm>
+    </div>
+</section>

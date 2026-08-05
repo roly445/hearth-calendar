@@ -15,4 +15,7 @@ public partial class WorkspaceHeader
 
     [Parameter]
     public EventCallback RefreshRequested { get; set; }
+
+    [Parameter]
+    public EventCallback SignOutRequested { get; set; }
 }
