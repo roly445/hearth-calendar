@@ -1,0 +1,16 @@
+@if (QueuedIntents.Count > 0)
+{
+    <div class="queued-list">
+        <h3>Queued for review</h3>
+        @foreach (var intent in QueuedIntents)
+        {
+            <article class="queued-item">
+                <div>
+                    <strong>@intent.RawText</strong>
+                    <p>@QueuedIntentDisplay.FormatIntent(intent)</p>
+                </div>
+                <span class="status-pill">@QueuedIntentDisplay.Status(intent)</span>
+            </article>
+        }
+    </div>
+}

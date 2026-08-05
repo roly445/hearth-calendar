@@ -1,0 +1,27 @@
+<section class="panel create-panel">
+    <h2>Create Event</h2>
+    <EditForm Model="Model" OnValidSubmit="Submitted">
+        <div class="field-stack">
+            <label>
+                Event
+                <textarea @bind="Model.RawText" rows="4" maxlength="500" placeholder="Shared meal on 12 August"></textarea>
+            </label>
+            <div class="field-row">
+                <label>
+                    Date
+                    <input type="date" value="@Model.DateText" @onchange="DateChanged" />
+                </label>
+                <label>
+                    Start
+                    <input type="time" value="@Model.StartTimeText" @onchange="StartTimeChanged" />
+                </label>
+                <label>
+                    End
+                    <input type="time" value="@Model.EndTimeText" @onchange="EndTimeChanged" />
+                </label>
+            </div>
+            <button class="primary-action" type="submit" disabled="@IsSubmitting">Create</button>
+        </div>
+    </EditForm>
+    <QueuedIntentList QueuedIntents="QueuedIntents" />
+</section>
