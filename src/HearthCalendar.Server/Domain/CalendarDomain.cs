@@ -292,5 +292,14 @@ public enum AuditAction
     EventDeleted,
     EventDeleteRejected,
     EventRescheduled,
-    EventRescheduleRejected
+    EventRescheduleRejected,
+    ClientCredentialCreated,
+    ClientCredentialRotated,
+    ClientCredentialRevoked,
+    FeedTokenCreated,
+    FeedTokenRotated,
+    FeedTokenRevoked,
+    CalDavCredentialCreated,
+    CalDavCredentialRotated,
+    CalDavCredentialRevoked
 }

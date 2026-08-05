@@ -212,6 +212,18 @@ h3 {
     align-items: start;
 }
 
+.credential-workspace {
+    display: grid;
+    gap: 1rem;
+}
+
+.credential-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(14rem, 1fr));
+    gap: 1rem;
+    align-items: start;
+}
+
 .panel {
     border: 1px solid var(--line);
     border-radius: 8px;
@@ -331,6 +343,56 @@ textarea {
     gap: 0.5rem;
 }
 
+.generated-secret-panel {
+    display: grid;
+    gap: 0.6rem;
+    border-left: 4px solid var(--accent);
+}
+
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.checkbox-grid label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.checkbox-grid input {
+    width: auto;
+}
+
+.credential-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.credential-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.85rem;
+}
+
+.credential-row p {
+    margin-bottom: 0.25rem;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
+.credential-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
 .queued-list {
     display: grid;
     gap: 0.65rem;
@@ -385,6 +447,8 @@ time {
 @media (max-width: 820px) {
     .page,
     .dashboard-grid,
+    .credential-grid,
+    .credential-row,
     .field-row {
         grid-template-columns: 1fr;
     }

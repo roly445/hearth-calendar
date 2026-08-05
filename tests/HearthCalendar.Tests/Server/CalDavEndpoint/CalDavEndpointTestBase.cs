@@ -61,9 +61,11 @@ public abstract class CalDavEndpointTestBase
                 builder.ConfigureTestServices(services =>
                 {
                     services.RemoveAll<IHearthCalendarStore>();
+                    services.RemoveAll<IHearthCalendarCredentialStore>();
                     services.RemoveAll<ICalendarUpdateNotifier>();
                     services.RemoveAll<IAiReviewProvider>();
                     services.AddSingleton<IHearthCalendarStore>(store);
+                    services.AddSingleton<IHearthCalendarCredentialStore, NoOpCredentialStore>();
                     services.AddSingleton<ICalendarUpdateNotifier>(notifier ?? new RecordingNotifier(store));
                     services.AddSingleton(aiReviewProvider ?? NoOpAiReviewProvider.Instance);
                 });

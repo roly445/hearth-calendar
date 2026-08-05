@@ -42,6 +42,7 @@ public sealed class CredentialDocumentPersistenceTests(MartenPostgreSqlFixture f
             Id = Guid.NewGuid(),
             Name = "caldav-app",
             SecretHash = "sha256:caldav-hash-placeholder",
+            ReadableCalendars = ["adult-a", "combined"],
             WritableCalendars = ["smart-inbox"],
             Scopes = ["caldav:write"],
             CreatedAt = SubmittedAt(),
@@ -76,6 +77,7 @@ public sealed class CredentialDocumentPersistenceTests(MartenPostgreSqlFixture f
             {
                 credential.Name,
                 HasSecretHash = !string.IsNullOrWhiteSpace(credential.SecretHash),
+                credential.ReadableCalendars,
                 credential.WritableCalendars,
                 credential.Scopes,
                 LastUsedAt = credential.LastUsedAt?.ToString("O"),

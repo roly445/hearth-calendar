@@ -1,0 +1,37 @@
+﻿{
+  Status: Succeeded,
+  Result: {
+    Name: family-feed,
+    HasSecret: true,
+    SecretHasPrefix: true,
+    Message: Feed token rotated.
+  },
+  Token: {
+    Name: family-feed,
+    HasTokenHash: true,
+    HashMatchesGeneratedSecret: true,
+    TokenHashContainsGeneratedSecret: false,
+    AllowedCalendars: [
+      Family,
+      Combined
+    ],
+    Scopes: [
+      feed:read
+    ],
+    HasCreatedAt: true
+  },
+  OldSecretStillMatches: false,
+  Audit: {
+    Action: FeedTokenRotated,
+    Actor: system,
+    HasOccurredAt: true,
+    Summary: Credential action FeedTokenRotated.,
+    Metadata: {
+      calendars: Family,Combined,
+      credentialId: Guid_1,
+      name: family-feed,
+      scopes: feed:read
+    },
+    ContainsRawSecret: false
+  }
+}

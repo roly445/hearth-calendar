@@ -41,7 +41,9 @@ public abstract class FeedEndpointTestBase
                 builder.ConfigureTestServices(services =>
                 {
                     services.RemoveAll<IHearthCalendarStore>();
+                    services.RemoveAll<IHearthCalendarCredentialStore>();
                     services.AddSingleton<IHearthCalendarStore>(store);
+                    services.AddSingleton<IHearthCalendarCredentialStore, NoOpCredentialStore>();
                 });
             });
 

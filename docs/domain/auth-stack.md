@@ -209,6 +209,28 @@ hc_feed_...
 
 Prefixes make logs and support conversations easier without exposing privilege or identity.
 
+## Credential Management UI
+
+Admin users can manage machine credentials from the web UI after signing in.
+
+The management surface supports:
+
+- listing client credential, feed token, and CalDAV app-password metadata
+- creating new credentials
+- rotating existing secrets
+- revoking credentials without deleting their audit trail
+
+The UI must never display stored hashes and must never read a raw secret back from storage. Create and rotate commands return the generated secret in the command response only. The browser displays that value until the admin dismisses it, signs out, refreshes, or runs another credential action.
+
+Operational handling:
+
+- copy generated secrets directly into the target client or a local secret manager
+- do not put generated secrets, bearer tokens, feed URLs with tokens, or app passwords in repository files, issue comments, screenshots, logs, or docs
+- keep `appsettings.json` examples as placeholders only
+- use environment variables, user secrets, deployment secrets, or the credential-management UI for real values
+- rotate any credential that may have been exposed
+- prefer separate credentials per device or integration so revocation is narrow
+
 ## Authorization And Domain Safety
 
 Authorization answers:
