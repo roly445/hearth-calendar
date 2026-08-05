@@ -8,6 +8,7 @@ using Testcontainers.PostgreSql;
 namespace HearthCalendar.Tests.Server;
 
 [Collection(MartenPostgreSqlCollection.Name)]
+[Trait("Category", "Docker")]
 public sealed class QueryReviewQueueAsyncTests(MartenPostgreSqlFixture fixture) : MartenPersistenceTestBase(fixture)
 {
     [Fact]

@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "build:assets": "node ./scripts/build-client-assets.mjs",
+    "test:dotnet:docker": "dotnet test HearthCalendar.slnx --filter Category=Docker",
+    "test:dotnet:fast": "dotnet test HearthCalendar.slnx --filter Category!=Docker",
     "test:assets": "npm run build:assets && node --test tests/HearthCalendar.Client.Assets/*.test.mjs",
     "watch:assets": "node ./scripts/build-client-assets.mjs --watch"
   },

@@ -21,3 +21,21 @@ Hearth Calendar is a .NET family calendar app that owns calendar policy and stor
 ## Local Configuration
 
 The server requires `Database:ConnectionString` at startup. Keep real connection strings out of source control; set `Database__ConnectionString` in the local environment or use .NET user secrets for development.
+
+## Local Checks
+
+Run the fast checks without Docker:
+
+```bash
+npm run test:assets
+npm run test:dotnet:fast
+dotnet build HearthCalendar.slnx
+```
+
+Run the Marten/PostgreSQL integration tests when Docker is available:
+
+```bash
+npm run test:dotnet:docker
+```
+
+`npm run test:dotnet:fast` excludes tests tagged `Category=Docker`. `npm run test:dotnet:docker` runs the Docker-backed tests only.

@@ -8,6 +8,7 @@ using Testcontainers.PostgreSql;
 namespace HearthCalendar.Tests.Server;
 
 [Collection(MartenPostgreSqlCollection.Name)]
+[Trait("Category", "Docker")]
 public sealed class RescheduleApprovedEventAsyncTests(MartenPostgreSqlFixture fixture) : MartenPersistenceTestBase(fixture)
 {
     [Fact]
