@@ -45,6 +45,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddScoped<IHearthCalendarStore, MartenHearthCalendarStore>();
+        services.AddScoped<IHearthCalendarCredentialStore, MartenHearthCalendarCredentialStore>();
 
         return services;
     }

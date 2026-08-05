@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using HearthCalendar.Client.Contracts.Auth;
+using HearthCalendar.Server.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
@@ -325,17 +326,18 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory logger,
     UrlEncoder encoder,
-    IOptions<HearthCalendarAuthOptions> authOptions)
+    IOptions<HearthCalendarAuthOptions> authOptions,
+    IHearthCalendarCredentialStore credentialStore)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     private const string CalDavRealm = "Hearth Calendar CalDAV";
 
-    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var credential = ReadCredential();
         if (credential is null)
         {
-            return Task.FromResult(AuthenticateResult.NoResult());
+            return AuthenticateResult.NoResult();
         }
 
         var client = authOptions.Value.ClientTokens.FirstOrDefault(
@@ -343,11 +345,11 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
                 HearthCalendarSecretHasher.Matches(credential.Secret, candidate.SecretHash));
         if (client is not null)
         {
-            return Task.FromResult(Success(HearthCalendarTokenPrincipalFactory.Create(
+            return Success(HearthCalendarTokenPrincipalFactory.Create(
                 client.Name,
                 HearthCalendarAuth.ClientTokenKind,
                 client.Scopes,
-                [])));
+                []));
         }
 
         var feed = authOptions.Value.FeedTokens.FirstOrDefault(
@@ -355,11 +357,43 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
                 HearthCalendarSecretHasher.Matches(credential.Secret, candidate.TokenHash));
         if (feed is not null)
         {
-            return Task.FromResult(Success(HearthCalendarTokenPrincipalFactory.Create(
+            return Success(HearthCalendarTokenPrincipalFactory.Create(
                 feed.Name,
                 HearthCalendarAuth.FeedTokenKind,
                 feed.Scopes,
-                feed.AllowedCalendars)));
+                feed.AllowedCalendars));
+        }
+
+        if (credential.Kind == SubmittedCredentialKind.Bearer)
+        {
+            var storedClient = await credentialStore.FindActiveClientCredentialAsync(
+                credential.Secret,
+                DateTimeOffset.UtcNow,
+                Context.RequestAborted);
+            if (storedClient is not null)
+            {
+                return Success(HearthCalendarTokenPrincipalFactory.Create(
+                    storedClient.ClientName,
+                    HearthCalendarAuth.ClientTokenKind,
+                    storedClient.Scopes,
+                    []));
+            }
+        }
+
+        if (credential.Kind == SubmittedCredentialKind.Bearer)
+        {
+            var storedFeed = await credentialStore.FindActiveFeedTokenAsync(
+                credential.Secret,
+                DateTimeOffset.UtcNow,
+                Context.RequestAborted);
+            if (storedFeed is not null)
+            {
+                return Success(HearthCalendarTokenPrincipalFactory.Create(
+                    storedFeed.Name,
+                    HearthCalendarAuth.FeedTokenKind,
+                    storedFeed.Scopes,
+                    storedFeed.AllowedCalendars));
+            }
         }
 
         var calDavCredential = authOptions.Value.CalDavCredentials.FirstOrDefault(
@@ -368,16 +402,35 @@ public sealed class HearthCalendarTokenAuthenticationHandler(
                 HearthCalendarSecretHasher.Matches(credential.Secret, candidate.SecretHash));
         if (calDavCredential is not null)
         {
-            return Task.FromResult(Success(HearthCalendarTokenPrincipalFactory.Create(
+            return Success(HearthCalendarTokenPrincipalFactory.Create(
                 calDavCredential.Name,
                 HearthCalendarAuth.CalDavTokenKind,
                 calDavCredential.Scopes,
                 [],
                 calDavCredential.ReadableCalendars,
-                calDavCredential.WritableCalendars)));
+                calDavCredential.WritableCalendars));
         }
 
-        return Task.FromResult(AuthenticateResult.Fail("Invalid token."));
+        if (credential.Kind == SubmittedCredentialKind.Basic && credential.Name is not null)
+        {
+            var storedCalDavCredential = await credentialStore.FindActiveCalDavCredentialAsync(
+                credential.Name,
+                credential.Secret,
+                DateTimeOffset.UtcNow,
+                Context.RequestAborted);
+            if (storedCalDavCredential is not null)
+            {
+                return Success(HearthCalendarTokenPrincipalFactory.Create(
+                    storedCalDavCredential.Name,
+                    HearthCalendarAuth.CalDavTokenKind,
+                    storedCalDavCredential.Scopes,
+                    [],
+                    storedCalDavCredential.ReadableCalendars,
+                    storedCalDavCredential.WritableCalendars));
+            }
+        }
+
+        return AuthenticateResult.Fail("Invalid token.");
     }
 
     protected override Task HandleChallengeAsync(AuthenticationProperties properties)

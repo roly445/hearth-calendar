@@ -175,6 +175,8 @@ public sealed record CalDavCredentialDocument
 
     public required string SecretHash { get; init; }
 
+    public required IReadOnlyList<string> ReadableCalendars { get; init; }
+
     public required IReadOnlyList<string> WritableCalendars { get; init; }
 
     public required IReadOnlyList<string> Scopes { get; init; }
