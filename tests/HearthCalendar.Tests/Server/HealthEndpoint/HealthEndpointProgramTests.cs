@@ -1,3 +1,4 @@
+using HearthCalendar.Server.Auth;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -108,6 +109,25 @@ public sealed class HealthEndpointProgramTests : HealthEndpointTestBase
         Assert.Equal(
             "true",
             response.Headers.GetValues("Access-Control-Allow-Credentials").Single());
+    }
+
+    [Fact]
+    public async Task Calendar_updates_hub_requires_admin_authorization()
+    {
+        await using var factory = CreateFactory();
+        _ = factory.CreateClient();
+
+        var endpoint = factory.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints
+            .OfType<RouteEndpoint>()
+            .Single(endpoint => string.Equals(
+                endpoint.RoutePattern.RawText,
+                "/hubs/calendar-updates",
+                StringComparison.Ordinal));
+        var authorizeData = endpoint.Metadata.OfType<IAuthorizeData>().Single();
+
+        Assert.Equal(HearthCalendarAuth.AdminPolicy, authorizeData.Policy);
     }
 
     private static bool AddsServerHeader()
