@@ -114,6 +114,21 @@ a:focus {
     margin: 0 auto;
 }
 
+.login-workspace {
+    display: grid;
+    place-items: start center;
+    min-height: calc(100vh - 6rem);
+    padding-top: 8vh;
+}
+
+.login-panel {
+    width: min(100%, 26rem);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 1.25rem;
+}
+
 .workspace-header {
     display: flex;
     align-items: center;

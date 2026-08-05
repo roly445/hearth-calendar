@@ -86,8 +86,7 @@ public class Program
         app.MapGet("/health", () => Results.Ok(new HealthResponse("Healthy")))
             .AllowAnonymous();
 
-        app.MapGet("/api/admin/session", () => Results.Ok(new AdminSessionResponse("authenticated")))
-            .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
+        app.MapAdminAuthEndpoints();
         app.MapIntakeEndpoints();
         app.MapFeedEndpoints();
         app.MapCalDavEndpoints();
@@ -126,8 +125,6 @@ public class Program
 }
 
 public sealed record HealthResponse(string Status);
-
-public sealed record AdminSessionResponse(string Status);
 
 public sealed record HearthCalendarSecurityOptions
 {

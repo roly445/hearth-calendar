@@ -51,4 +51,15 @@ public sealed class HearthCalendarAuthTests : AuthIntakeEndpointTestBase
             claim.Type == HearthCalendarAuth.AllowedCalendarClaim &&
             claim.Value == VirtualCalendar.AdultA.ToString());
     }
+
+    [Fact]
+    public void Admin_password_hasher_matches_only_original_password()
+    {
+        var hash = HearthCalendarAdminPasswordHasher.Hash(AdminPassword);
+
+        Assert.True(HearthCalendarAdminPasswordHasher.Matches(AdminPassword, hash));
+        Assert.False(HearthCalendarAdminPasswordHasher.Matches("wrong-password", hash));
+        Assert.False(HearthCalendarAdminPasswordHasher.Matches(AdminPassword, "not-a-valid-hash"));
+        Assert.DoesNotContain(AdminPassword, hash, StringComparison.Ordinal);
+    }
 }
