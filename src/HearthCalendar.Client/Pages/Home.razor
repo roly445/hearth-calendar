@@ -23,7 +23,7 @@
                           StartTimeChanged="SetStartTime"
                           EndTimeChanged="SetEndTime" />
 
-        <ReviewQueuePanel StatusMessage="reviewStatusMessage"
+        <ReviewQueuePanel StatusMessage="@reviewStatusMessage"
                           Items="reviewItems"
                           CanUseOnlineActions="CanUseOnlineActions"
                           IsSubmitting="isSubmitting"
@@ -31,7 +31,7 @@
                           RejectRequested="RejectAsync"
                           EditRequested="EditAsync" />
 
-        <UpcomingEventsPanel StatusMessage="eventsStatusMessage"
+        <UpcomingEventsPanel StatusMessage="@eventsStatusMessage"
                              Items="upcomingEvents" />
     </div>
 </section>
