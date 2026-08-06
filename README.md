@@ -16,6 +16,7 @@ Hearth Calendar is a .NET family calendar app that owns calendar policy and stor
 - [.NET app defaults compliance](docs/engineering/dotnet-app-defaults-compliance.md)
 - [BluQube usage guide](docs/engineering/bluqube-usage.md)
 - [Continuous integration](docs/engineering/ci.md)
+- [Deployment and runtime configuration](docs/engineering/deployment-runtime.md)
 - [Public repo privacy](docs/engineering/public-repo-privacy.md)
 
 ## Local Configuration
