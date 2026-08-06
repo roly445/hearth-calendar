@@ -81,6 +81,7 @@ Use explicit commands so local and CI signals stay clear:
 | Suite | Command | Docker Required |
 | --- | --- | --- |
 | Client assets | `npm run test:assets` | No |
+| Browser smoke | `npm run test:browser` | No |
 | Fast .NET tests | `npm run test:dotnet:fast` | No |
 | Docker-backed .NET tests | `npm run test:dotnet:docker` | Yes |
 | Build | `dotnet build HearthCalendar.slnx` | No |

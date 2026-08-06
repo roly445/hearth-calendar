@@ -15,6 +15,7 @@ Hearth Calendar is a .NET family calendar app that owns calendar policy and stor
 
 - [.NET app defaults compliance](docs/engineering/dotnet-app-defaults-compliance.md)
 - [BluQube usage guide](docs/engineering/bluqube-usage.md)
+- [Browser testing](docs/engineering/browser-testing.md)
 - [Continuous integration](docs/engineering/ci.md)
 - [Deployment and runtime configuration](docs/engineering/deployment-runtime.md)
 - [Public repo privacy](docs/engineering/public-repo-privacy.md)
@@ -29,6 +30,7 @@ Run the fast checks without Docker:
 
 ```bash
 npm run test:assets
+npm run test:browser
 npm run test:dotnet:fast
 dotnet build HearthCalendar.slnx
 ```

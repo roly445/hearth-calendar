@@ -6,6 +6,8 @@ src/HearthCalendar.Client/wwwroot/
 .vscode/
 .idea/
 TestResults/
+test-results/
+playwright-report/
 *.user
 *.suo
 *.rsuser

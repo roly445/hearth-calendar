@@ -28,6 +28,12 @@ jobs:
       - name: Test client assets
         run: npm run test:assets
 
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Test browser smoke suite
+        run: npm run test:browser
+
       - name: Restore
         run: dotnet restore
 
