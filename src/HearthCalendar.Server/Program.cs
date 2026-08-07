@@ -24,8 +24,13 @@ public class Program
 {
     private const string ConfiguredOriginsPolicy = "ConfiguredOrigins";
 
-    public static void Main(string[] args)
+    public static int Main(string[] args)
     {
+        if (AdminPasswordHashCommand.IsCommand(args))
+        {
+            return AdminPasswordHashCommand.Run(args, Console.In, Console.Out, Console.Error);
+        }
+
         var builder = WebApplication.CreateBuilder(args);
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
         builder.WebHost.ConfigureKestrel(ConfigureKestrelServerOptions);
@@ -110,6 +115,8 @@ public class Program
             .AllowAnonymous();
 
         app.Run();
+
+        return 0;
     }
 
     public static void ConfigureServiceProviderValidation(

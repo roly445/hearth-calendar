@@ -43,13 +43,36 @@ Security__Cors__AllowedOrigins__0=https://calendar.example.invalid
 
 Array indexes are zero-based. Add `__1`, `__2`, and so on for additional values.
 
+## First Admin Bootstrap
+
+The first admin user is provisioned out-of-band through configuration. The app does not ship with a default admin account and does not expose public registration.
+
+Generate the password hash locally and pass only the hash to the running app:
+
+```powershell
+$password = Read-Host -Prompt "Admin password" -MaskInput
+$password | dotnet run --no-launch-profile --project src/HearthCalendar.Server -- admin-password-hash --password-stdin
+Remove-Variable password
+```
+
+Use the generated value as the first admin's password hash:
+
+```text
+Auth__AdminUsers__0__Username=admin-user
+Auth__AdminUsers__0__DisplayName=Calendar Admin
+Auth__AdminUsers__0__PasswordHash=pbkdf2-sha256:<iterations>:<salt>:<hash>
+Auth__AdminUsers__0__Scopes__0=admin:web
+```
+
+For local development, prefer .NET user secrets or process-level environment variables. For deployment, use the host's secret store or environment-variable management. Do not commit the generated hash if it belongs to a real deployment, and never commit or log the raw password.
+
 ## Optional Bootstrap Credentials
 
 The app supports bootstrap credentials in configuration and runtime-managed credentials in PostgreSQL. Prefer runtime-managed client, feed, and CalDAV credentials after the admin UI is available. Keep bootstrap configuration small and rotate away from it when practical.
 
 ### Admin Users
 
-Admin users are configured under `Auth:AdminUsers`. Passwords must be stored as PBKDF2 hashes produced by the app's admin password hashing code, not as raw passwords.
+Admin users are configured under `Auth:AdminUsers`. Passwords must be stored as PBKDF2 hashes produced by the app's admin password hashing command, not as raw passwords.
 
 ```json
 {
@@ -243,4 +266,3 @@ After deploying with generic, non-secret examples replaced by real secret-store 
 8. Turn the network offline in the browser dev tools and confirm the PWA app shell still opens.
 
 Keep smoke-test data generic, for example `Adult A dentist` or `Family planning`, and remove any temporary credentials after testing.
-
