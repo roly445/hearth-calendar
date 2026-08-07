@@ -14,12 +14,13 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: `dotnet run --project src/HearthCalendar.Server/HearthCalendar.Server.csproj --no-launch-profile --urls ${baseURL}`,
+    command: `dotnet run --configuration Release --project src/HearthCalendar.Server/HearthCalendar.Server.csproj --no-launch-profile --urls ${baseURL}`,
     url: `${baseURL}/health`,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
     env: {
       ASPNETCORE_ENVIRONMENT: "Test",
+      BrowserTests__UseSeedData: "true",
       Database__ConnectionString:
         "Host=127.0.0.1;Port=1;Database=hearth_calendar_browser;Username=browser;Password=browser",
       Database__SchemaName: "hearth_calendar_browser"

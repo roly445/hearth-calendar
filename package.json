@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build:assets": "node ./scripts/build-client-assets.mjs",
-    "test:browser": "playwright test",
+    "test:browser": "npm run build:assets && playwright test",
     "test:browser:install": "playwright install chromium",
     "test:dotnet:docker": "dotnet test HearthCalendar.slnx --filter Category=Docker",
     "test:dotnet:fast": "dotnet test HearthCalendar.slnx --filter Category!=Docker",

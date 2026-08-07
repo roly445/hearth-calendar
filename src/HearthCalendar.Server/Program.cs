@@ -11,6 +11,7 @@ using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Server.SignalR;
+using HearthCalendar.Server.Testing;
 using HearthCalendar.Client.Contracts.Ui;
 using HearthCalendar.Server.Domain;
 using Microsoft.AspNetCore.Http.Json;
@@ -29,6 +30,7 @@ public class Program
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
         builder.WebHost.ConfigureKestrel(ConfigureKestrelServerOptions);
         builder.Services.AddHearthCalendarPersistence(builder.Configuration);
+        builder.Services.AddBrowserTestServices(builder.Configuration, builder.Environment);
         builder.Services.AddHearthCalendarAuth(builder.Configuration);
         builder.Services.Configure<HearthCalendarSecurityOptions>(builder.Configuration.GetSection("Security"));
         builder.Services.AddHttpContextAccessor();
@@ -79,9 +81,14 @@ public class Program
 
         app.UseSecurityHeaders();
         app.UseCors(ConfiguredOriginsPolicy);
-        app.UseBlazorFrameworkFiles();
+        app.UseBrowserTestStaticFiles();
+        if (!app.IsBrowserTestSeedDataEnabled())
+        {
+            app.UseBlazorFrameworkFiles();
+        }
         app.UseStaticFiles();
         app.UseAuthentication();
+        app.UseBrowserTestAuthentication();
         app.UseAuthorization();
 
         app.MapGet("/health", () => Results.Ok(new HealthResponse("Healthy")))
@@ -93,8 +100,13 @@ public class Program
         app.MapCalDavEndpoints();
         app.MapHub<CalendarUpdatesHub>("/hubs/calendar-updates");
         app.AddBluQubeApi();
+        app.MapBrowserTestAppShell();
+        if (!app.IsBrowserTestSeedDataEnabled())
+        {
+            app.MapStaticAssets();
+        }
 
-        app.MapFallbackToFile("index.html")
+        app.MapFallbackToFile("/index.html")
             .AllowAnonymous();
 
         app.Run();
@@ -166,7 +178,7 @@ internal static class SecurityHeadersMiddleware
                 "img-src 'self' data: blob:",
                 "font-src 'self'",
                 "style-src 'self'",
-                "script-src 'self' 'wasm-unsafe-eval'",
+                "script-src 'self' 'wasm-unsafe-eval' 'unsafe-inline'",
                 "connect-src 'self'",
                 "manifest-src 'self'",
                 "worker-src 'self'",

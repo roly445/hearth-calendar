@@ -19,7 +19,9 @@ Run the browser suite:
 npm run test:browser
 ```
 
-Playwright starts `HearthCalendar.Server` through `playwright.config.ts`. The app is given a generic, non-secret database connection string so startup configuration validation passes. The smoke tests use the anonymous `/health` endpoint, so they do not require a real PostgreSQL instance.
+Playwright starts `HearthCalendar.Server` through `playwright.config.ts`. The app is given a generic, non-secret database connection string so startup configuration validation passes.
+
+The browser configuration also sets `BrowserTests__UseSeedData=true` while running the server in the `Test` environment. That switch enables a narrow in-memory store and test admin principal for browser smoke coverage. It is only active when both the environment and config flag are set, and it must not be enabled in production deployments.
 
 ## Configuration
 
