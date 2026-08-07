@@ -113,6 +113,13 @@ public partial class Home : IAsyncDisposable
         var today = DateOnly.FromDateTime(DateTime.Today);
         var reviewResult = await QueryRunner.Send(new GetReviewQueueQuery());
         var eventResult = await QueryRunner.Send(new GetUpcomingEventsQuery(today, today.AddDays(60)));
+        if (reviewResult.Status == QueryResultStatus.Unauthorized ||
+            eventResult.Status == QueryResultStatus.Unauthorized)
+        {
+            isLoading = false;
+            Navigation.NavigateTo("/login");
+            return;
+        }
 
         (reviewItems, reviewStatusMessage) = ReadCollectionResult(
             reviewResult.Status,
@@ -204,6 +211,14 @@ public partial class Home : IAsyncDisposable
 
         isSubmitting = true;
         var result = await CommandRunner.Send(command);
+        if (IsUnauthorized(result) ||
+            result.Status == CommandResultStatus.Failed && !await HasAdminSessionAsync())
+        {
+            isSubmitting = false;
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
         message = result.Status == CommandResultStatus.Succeeded
             ? result.Data.Message
             : CommandMessage(result.Status);
@@ -318,6 +333,18 @@ public partial class Home : IAsyncDisposable
             CommandResultStatus.Failed => "The action was rejected by the server.",
             _ => "The action could not be completed."
         };
+
+    private static bool IsUnauthorized<TResult>(CommandResult<TResult> result)
+        where TResult : ICommandResult =>
+        result.Status == CommandResultStatus.Failed &&
+        string.Equals(result.ErrorData.Code, BluQubeErrorCodes.NotAuthorized, StringComparison.Ordinal);
+
+    private async Task<bool> HasAdminSessionAsync()
+    {
+        var session = await SessionClient.GetSessionAsync();
+
+        return session.IsAuthenticated;
+    }
 
     private static DateOnly? ParseDate(string? value) =>
         DateOnly.TryParse(value, out var date) ? date : null;

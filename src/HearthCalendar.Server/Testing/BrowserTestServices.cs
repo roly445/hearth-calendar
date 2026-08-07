@@ -43,7 +43,10 @@ internal static partial class BrowserTestServices
 
             if (IsEnabled(configuration, environment))
             {
-                context.User = BrowserTestPrincipal();
+                if (!BrowserTestAuthOverride.IsForceAnonymous(context))
+                {
+                    context.User = BrowserTestPrincipal();
+                }
             }
 
             await next();
@@ -225,10 +228,30 @@ internal static partial class BrowserTestServices
     private static partial Regex FingerprintedRootAssetRegex();
 }
 
+internal static class BrowserTestAuthOverride
+{
+    public const string AnonymousCookieName = "hearth-browser-test-auth";
+    public const string AnonymousCookieValue = "anonymous";
+
+    public static bool IsForceAnonymous(HttpContext context) =>
+        string.Equals(
+            context.Request.Cookies[AnonymousCookieName],
+            AnonymousCookieValue,
+            StringComparison.Ordinal);
+}
+
 internal sealed class BrowserTestPolicyEvaluator : IPolicyEvaluator
 {
     public Task<AuthenticateResult> AuthenticateAsync(AuthorizationPolicy policy, HttpContext context)
     {
+        if (BrowserTestAuthOverride.IsForceAnonymous(context))
+        {
+            return Task.FromResult(context.User.Identity?.IsAuthenticated == true
+                ? AuthenticateResult.Success(
+                    new AuthenticationTicket(context.User, CookieAuthenticationDefaults.AuthenticationScheme))
+                : AuthenticateResult.NoResult());
+        }
+
         var principal = BrowserTestPrincipal();
         context.User = principal;
 
