@@ -40,10 +40,12 @@ Initial approach:
 - one or more admin users supplied through configuration
 - passwords stored as PBKDF2-SHA256 hashes
 - cookie sessions for the review/admin UI
+- first admin bootstrapped through environment variables or deployment secrets, with no default account and no public registration
 
 Potential later upgrade:
 
 - admin users stored in Marten with lifecycle metadata
+- one-time first-run setup guarded by a bootstrap secret and disabled once an admin exists
 - external identity provider through OpenID Connect
 - Microsoft, Google, or another family-managed provider
 - richer roles if the app grows beyond simple admin usage
@@ -138,6 +140,29 @@ V1 can implement this as simple string scopes on credential documents. It does n
 The app should use ASP.NET Core fallback authorization so new endpoints are protected unless explicitly configured otherwise.
 
 BluQube commands and queries used by the Blazor WebAssembly UI should also require authorization by default through BluQube authorization. Anonymous BluQube requests, such as a future login/bootstrap command, must be explicitly marked.
+
+## First Admin Bootstrap
+
+V1 bootstraps the first human admin outside the app through configuration. The deployment provides `Auth:AdminUsers` via environment variables, user secrets, or a host secret store. The app only receives a PBKDF2 password hash.
+
+Environment variable shape:
+
+```text
+Auth__AdminUsers__0__Username=admin-user
+Auth__AdminUsers__0__DisplayName=Calendar Admin
+Auth__AdminUsers__0__PasswordHash=pbkdf2-sha256:<iterations>:<salt>:<hash>
+Auth__AdminUsers__0__Scopes__0=admin:web
+```
+
+Generate the hash with the server command:
+
+```powershell
+$password = Read-Host -Prompt "Admin password" -MaskInput
+$password | dotnet run --no-launch-profile --project src/HearthCalendar.Server -- admin-password-hash --password-stdin
+Remove-Variable password
+```
+
+The repo must not contain a real admin username, raw password, deployment hash, or default admin credential.
 
 ## Credential Documents
 
