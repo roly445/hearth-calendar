@@ -5,7 +5,9 @@ using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +47,54 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
         var response = await client.GetAsync("/health");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task App_shell_requires_admin_session_and_redirects_to_login()
+    {
+        var store = new RecordingHearthCalendarStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var rootResponse = await client.GetAsync("/");
+        var workspaceResponse = await client.GetAsync("/credentials");
+        var loginResponse = await client.GetAsync("/login");
+        var loginBody = await loginResponse.Content.ReadAsStringAsync();
+        var loginEndpoint = factory.Services
+            .GetRequiredService<EndpointDataSource>()
+            .Endpoints
+            .OfType<RouteEndpoint>()
+            .Single(endpoint => string.Equals(endpoint.RoutePattern.RawText, "/login", StringComparison.Ordinal) &&
+                endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods.Contains("GET") == true);
+
+        await Verifier.Verify(new
+        {
+            RootResponse = new
+            {
+                rootResponse.StatusCode,
+                Location = rootResponse.Headers.Location?.ToString(),
+                HasSetCookie = HasSetCookie(rootResponse)
+            },
+            WorkspaceResponse = new
+            {
+                workspaceResponse.StatusCode,
+                Location = workspaceResponse.Headers.Location?.ToString(),
+                HasSetCookie = HasSetCookie(workspaceResponse)
+            },
+            LoginShell = new
+            {
+                loginResponse.StatusCode,
+                loginEndpoint.RoutePattern.RawText,
+                IsExplicitlyAnonymous = loginEndpoint.Metadata.Any(metadata => metadata is IAllowAnonymous),
+                ContainsAppStylesheet = loginBody.Contains("/css/app.css", StringComparison.Ordinal),
+                ContainsLoginPanel = loginBody.Contains("login-panel", StringComparison.Ordinal),
+                ContainsBlazorBootScript = loginBody.Contains("blazor.webassembly", StringComparison.Ordinal),
+                ContainsWebAssemblyRoot = loginBody.Contains("<div id=\"app\">", StringComparison.Ordinal)
+            }
+        });
     }
 
     [Fact]
@@ -93,6 +143,33 @@ public sealed class ProgramTests : AuthIntakeEndpointTestBase
                 HasSetCookie = HasSetCookie(session),
                 BodyContainsRawPassword = await ContainsRawPasswordAsync(session)
             }
+        });
+    }
+
+    [Fact]
+    public async Task Valid_form_admin_login_redirects_to_app_shell()
+    {
+        var store = new RecordingHearthCalendarStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        var login = await client.PostAsync(
+            "/login",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["username"] = AdminUsername,
+                ["password"] = AdminPassword
+            }));
+
+        await Verifier.Verify(new
+        {
+            login.StatusCode,
+            Location = login.Headers.Location?.ToString(),
+            HasSetCookie = HasSetCookie(login),
+            BodyContainsRawPassword = await ContainsRawPasswordAsync(login)
         });
     }
 

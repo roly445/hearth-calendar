@@ -9,6 +9,7 @@ The deployed app is a hosted Blazor WebAssembly application served by `HearthCal
 ```text
 Browser/PWA
   -> ASP.NET Core server
+       -> server-rendered login page
        -> Blazor WASM static assets
        -> BluQube command/query endpoints
        -> SignalR calendar update hub
@@ -18,11 +19,11 @@ Browser/PWA
        -> Marten/PostgreSQL
 ```
 
-PostgreSQL is the source of truth. The browser may cache the app shell and selected read models for PWA/offline use, but approved calendar state, review decisions, credentials, and audits are owned by the server and persisted through Marten.
+PostgreSQL is the source of truth. The browser may cache the app shell and selected read models for PWA/offline use, but approved calendar state, review decisions, credentials, and audits are owned by the server and persisted through Marten. Online page navigations go to the server first so unauthenticated users are sent to the server-rendered login page before the WASM app shell is served.
 
 ## Required Configuration
 
-Use environment variables, a deployment secret store, or .NET user secrets for local development. Do not commit real values to `appsettings*.json`.
+Use environment variables, a deployment secret store, or the ignored `appsettings.Local.json` file for local development. Do not commit real values to checked-in `appsettings*.json` files.
 
 | Key | Required | Example | Notes |
 | --- | --- | --- | --- |
@@ -42,6 +43,37 @@ Security__Cors__AllowedOrigins__0=https://calendar.example.invalid
 ```
 
 Array indexes are zero-based. Add `__1`, `__2`, and so on for additional values.
+
+## Local Development Host
+
+Use the .NET 10 HTTPS development certificate with the app-specific development host:
+
+```text
+hearth-calendar.dev.localhost
+```
+
+The .NET 10 ASP.NET Core HTTPS development certificate includes `*.dev.localhost` in its subject alternative names, so this host is covered by the standard dev cert. On Windows, add a local hosts entry if the name does not resolve automatically:
+
+```text
+127.0.0.1 hearth-calendar.dev.localhost
+::1 hearth-calendar.dev.localhost
+```
+
+The server launch profiles use:
+
+```text
+https://hearth-calendar.dev.localhost:7129
+http://hearth-calendar.dev.localhost:5273
+```
+
+Set local-only configuration through `src/HearthCalendar.Server/appsettings.Local.json`. Start by copying the example file:
+
+```powershell
+docker compose up -d postgres
+Copy-Item .\src\HearthCalendar.Server\appsettings.Local.example.json .\src\HearthCalendar.Server\appsettings.Local.json
+```
+
+The compose file starts PostgreSQL on `localhost:5432` with database `hearth_calendar_dev`, username `postgres`, and password `postgres`. Then edit the ignored local file with your local admin password hash. Use different credentials outside local development.
 
 ## First Admin Bootstrap
 
@@ -222,6 +254,8 @@ dotnet build HearthCalendar.slnx --configuration Release
 
 Offline browser caches must not contain raw credentials, feed tokens, admin passwords, or private provider payloads.
 
+The service worker is network-first for navigation requests. When online, `/` and workspace routes reach the ASP.NET Core auth gate and redirect unauthenticated users to `/login`; cached `index.html` is only an offline fallback. Both development and published workers activate and claim clients immediately so updated worker behavior replaces older cached workers promptly.
+
 ## Health Checks
 
 The server exposes:
@@ -257,12 +291,13 @@ When running behind a proxy, also ensure:
 After deploying with generic, non-secret examples replaced by real secret-store values:
 
 1. Open `/health` and confirm it returns healthy.
-2. Load the root app URL and confirm Blazor starts without CSP errors in the browser console.
-3. Sign in with an admin test account and confirm `/api/admin/session` returns an authenticated session.
-4. Submit a generic event intent from the web UI and confirm it appears as approved, staged, or rejected according to review rules.
-5. Open a second browser session and confirm SignalR updates refresh the visible calendar or review queue after a state change.
-6. Request a configured ICS feed with a feed token and confirm an `.ics` response is returned.
-7. Use a configured CalDAV read credential to discover calendars.
-8. Turn the network offline in the browser dev tools and confirm the PWA app shell still opens.
+2. Load the root app URL while signed out and confirm it redirects to the server-rendered `/login` page without loading `blazor.webassembly`.
+3. Sign in with an admin test account and confirm the Blazor WASM workspace starts without CSP errors in the browser console.
+4. Confirm `/api/admin/session` returns an authenticated session.
+5. Submit a generic event intent from the web UI and confirm it appears as approved, staged, or rejected according to review rules.
+6. Open a second browser session and confirm SignalR updates refresh the visible calendar or review queue after a state change.
+7. Request a configured ICS feed with a feed token and confirm an `.ics` response is returned.
+8. Use a configured CalDAV read credential to discover calendars.
+9. Turn the network offline in the browser dev tools and confirm an installed, previously authenticated PWA can use the cached app shell and visibly stale cached data.
 
 Keep smoke-test data generic, for example `Adult A dentist` or `Family planning`, and remove any temporary credentials after testing.

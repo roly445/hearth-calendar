@@ -1,0 +1,102 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "restore",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "restore",
+        "${workspaceFolder}/HearthCalendar.slnx",
+        "--disable-parallel"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "build-assets",
+      "type": "process",
+      "command": "npm",
+      "args": [
+        "run",
+        "build:assets"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "build",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "build",
+        "${workspaceFolder}/HearthCalendar.slnx",
+        "--no-restore"
+      ],
+      "dependsOn": [
+        "build-assets"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "postgres-up",
+      "type": "process",
+      "command": "docker",
+      "args": [
+        "compose",
+        "up",
+        "-d",
+        "postgres"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "watch-assets",
+      "type": "process",
+      "command": "npm",
+      "args": [
+        "run",
+        "watch:assets"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "test-dotnet-fast",
+      "type": "process",
+      "command": "dotnet",
+      "args": [
+        "test",
+        "${workspaceFolder}/tests/HearthCalendar.Tests/HearthCalendar.Tests.csproj",
+        "--no-restore",
+        "--filter",
+        "Category!=Docker"
+      ],
+      "problemMatcher": "$msCompile"
+    },
+    {
+      "label": "test-assets",
+      "type": "process",
+      "command": "npm",
+      "args": [
+        "run",
+        "test:assets"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

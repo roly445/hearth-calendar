@@ -16,6 +16,7 @@ The selected stack is:
 - The server owns calendar policy, persistence, auth, and audit.
 - The WASM client owns interaction, presentation state, and optimistic UI where safe.
 - The PWA app shell and selected read models can be available offline.
+- The login page is statically rendered on the server so unauthenticated users do not download or boot the WASM app.
 - BluQube commands and queries are the default path for client/server request-response work.
 - SignalR broadcasts state-change notifications; it does not become a second command API.
 - Offline writes must be constrained to safe queued intent submission unless a later conflict model supports more.
@@ -34,6 +35,8 @@ flowchart LR
     Server --> Store[("Marten / PostgreSQL")]
     Server --> Integrations["Home Assistant / ICS / CalDAV endpoints"]
 ```
+
+Unauthenticated navigation first hits the server-rendered `/login` page. After a successful form post creates the admin cookie, the server allows the hosted WASM app shell to load.
 
 Recommended project shape:
 
@@ -279,8 +282,10 @@ Authored browser assets live outside generated static output:
 
 Offline support has two layers:
 
-- app shell caching so the UI can open without a network connection
+- app shell caching so an already-authenticated installed PWA can open without a network connection
 - local browser storage for selected read models and safe pending work
+
+Service-worker page navigations are network-first. When the browser is online, navigations reach the server so the app-shell authentication gate can redirect unauthenticated users to `/login` before the WASM client loads. The cached app shell is used only as an offline fallback. The local development service worker also activates immediately and claims clients so older cached workers are replaced during development.
 
 ```mermaid
 flowchart LR
@@ -371,6 +376,7 @@ Requirements:
 - deployed WASM origins are included in the server CORS allowed-origin list
 - local development origins are not copied into production CORS settings
 - offline caches do not contain raw credentials or feed tokens
+- page navigation fetches the server first while online, so cached app shell content does not bypass the auth gate
 
 ### Staleness And Conflict Rules
 
@@ -434,6 +440,7 @@ All of these still call the same server-side domain services and persist to the 
 
 - Blazor WASM client uses BluQube command/query runners for web UI server calls.
 - Blazor WASM client is PWA-ready with app shell caching.
+- Login is server-rendered and does not boot the WASM client before authentication.
 - BluQube request/result records and UI DTOs live in the client project.
 - Client-owned BluQube contracts do not reference server domain types.
 - BluQube handlers, processors, validators, authorizers, and Marten access live on the server.

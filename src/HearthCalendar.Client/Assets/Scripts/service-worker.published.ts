@@ -20,7 +20,11 @@ interface PublishedServiceWorkerFetchEvent {
 interface PublishedServiceWorkerGlobalScope {
     assetsManifest: PublishedServiceWorkerAssetsManifest;
     origin: string;
+    clients: {
+        claim(): Promise<void>;
+    };
     importScripts(path: string): void;
+    skipWaiting(): Promise<void>;
     addEventListener(type: 'install', listener: (event: PublishedServiceWorkerExtendableEvent) => void): void;
     addEventListener(type: 'activate', listener: (event: PublishedServiceWorkerExtendableEvent) => void): void;
     addEventListener(type: 'fetch', listener: (event: PublishedServiceWorkerFetchEvent) => void): void;
@@ -56,6 +60,7 @@ async function onPublishedServiceWorkerInstall(): Promise<void> {
         .filter(asset => !publishedServiceWorkerOfflineAssetsExclude.some(pattern => pattern.test(asset.url)))
         .map(asset => new Request(asset.url, { integrity: asset.hash, cache: 'no-cache' }));
     await caches.open(publishedServiceWorkerCacheName).then(cache => cache.addAll(assetsRequests));
+    await publishedServiceWorker.skipWaiting();
 }
 
 async function onPublishedServiceWorkerActivate(): Promise<void> {
@@ -65,6 +70,7 @@ async function onPublishedServiceWorkerActivate(): Promise<void> {
     await Promise.all(cacheKeys
         .filter(key => key.startsWith(publishedServiceWorkerCacheNamePrefix) && key !== publishedServiceWorkerCacheName)
         .map(key => caches.delete(key)));
+    await publishedServiceWorker.clients.claim();
 }
 
 async function onPublishedServiceWorkerFetch(event: PublishedServiceWorkerFetchEvent): Promise<Response> {
@@ -74,17 +80,30 @@ async function onPublishedServiceWorkerFetch(event: PublishedServiceWorkerFetchE
         return fetch(event.request);
     }
 
+    if (isPublishedServiceWorkerNavigationRequest(event.request)) {
+        try {
+            return await fetch(event.request);
+        } catch (error) {
+            const cache = await caches.open(publishedServiceWorkerCacheName);
+            const cachedResponse = await cache.match('index.html');
+
+            return cachedResponse ?? Promise.reject(error);
+        }
+    }
+
     let cachedResponse: Response | undefined;
     if (event.request.method === 'GET') {
-        const shouldServeIndexHtml = event.request.mode === 'navigate'
-            && !publishedServiceWorkerManifestUrlList.some(url => url === event.request.url);
-
-        const request = shouldServeIndexHtml ? 'index.html' : event.request;
         const cache = await caches.open(publishedServiceWorkerCacheName);
-        cachedResponse = await cache.match(request);
+        cachedResponse = await cache.match(event.request);
     }
 
     return cachedResponse ?? fetch(event.request);
+}
+
+function isPublishedServiceWorkerNavigationRequest(request: Request): boolean {
+    return request.method === 'GET'
+        && request.mode === 'navigate'
+        && !publishedServiceWorkerManifestUrlList.some(url => url === request.url);
 }
 
 function isPublishedServiceWorkerCacheableOfflineAsset(assetUrl: string): boolean {

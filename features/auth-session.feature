@@ -7,6 +7,7 @@ Feature: Authenticated admin session
     Given no admin session exists
     When I open the calendar workspace
     Then I am asked to sign in
+    And the WebAssembly app shell is not loaded before sign-in
     And protected calendar workspace data is not shown
 
   Scenario: Authenticated admins can load the calendar workspace

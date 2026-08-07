@@ -47,7 +47,7 @@ jobs:
           retention-days: 14
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore --disable-parallel
 
       - name: Build
         run: dotnet build --configuration Release --no-restore
@@ -74,7 +74,7 @@ jobs:
         run: npm ci
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore --disable-parallel
 
       - name: Build
         run: dotnet build --configuration Release --no-restore

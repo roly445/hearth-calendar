@@ -1,13 +1,7 @@
-using System.Security.Claims;
-using System.Text.RegularExpressions;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Domain;
 using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Persistence;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.FileProviders;
 
@@ -30,27 +24,12 @@ internal static partial class BrowserTestServices
         services.AddSingleton<BrowserTestHearthCalendarStore>();
         services.AddSingleton<IHearthCalendarStore>(provider =>
             provider.GetRequiredService<BrowserTestHearthCalendarStore>());
-        services.AddSingleton<IPolicyEvaluator, BrowserTestPolicyEvaluator>();
 
         return services;
     }
 
     public static IApplicationBuilder UseBrowserTestAuthentication(this IApplicationBuilder app) =>
-        app.Use(async (context, next) =>
-        {
-            var configuration = context.RequestServices.GetRequiredService<IConfiguration>();
-            var environment = context.RequestServices.GetRequiredService<IHostEnvironment>();
-
-            if (IsEnabled(configuration, environment))
-            {
-                if (!BrowserTestAuthOverride.IsForceAnonymous(context))
-                {
-                    context.User = BrowserTestPrincipal();
-                }
-            }
-
-            await next();
-        });
+        app;
 
     public static IApplicationBuilder UseBrowserTestStaticFiles(this IApplicationBuilder app)
     {
@@ -106,30 +85,15 @@ internal static partial class BrowserTestServices
         }
 
         endpoints.MapGet("/", BrowserTestIndexAsync)
-            .AllowAnonymous();
+            .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
         endpoints.MapGet("/index.html", BrowserTestIndexAsync)
             .AllowAnonymous();
-        endpoints.MapGet("/{fileName:regex(^offline-calendar\\.[a-z0-9]+\\.js$)}", BrowserTestRootFingerprintAssetAsync)
-            .AllowAnonymous();
-
         return endpoints;
     }
 
     private static bool IsEnabled(IConfiguration configuration, IHostEnvironment environment) =>
         environment.IsEnvironment("Test") &&
         configuration.GetValue<bool>($"{SectionName}:UseSeedData");
-
-    private static ClaimsPrincipal BrowserTestPrincipal()
-    {
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, "browser-test-admin"),
-            new Claim(ClaimTypes.Name, "Browser Test Admin"),
-            new Claim(HearthCalendarAuth.ScopeClaim, HearthCalendarAuth.AdminWebScope)
-        };
-
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
-    }
 
     private static IResult BrowserTestIndexAsync(IHostEnvironment environment)
     {
@@ -151,26 +115,6 @@ internal static partial class BrowserTestServices
         return transformedIndex is null
             ? Results.NotFound()
             : Results.File(transformedIndex, "text/html; charset=utf-8");
-    }
-
-    private static IResult BrowserTestRootFingerprintAssetAsync(string fileName, IHostEnvironment environment)
-    {
-        var sourceName = FingerprintedRootAssetRegex()
-            .Replace(fileName, "${name}.${extension}");
-        if (string.Equals(sourceName, fileName, StringComparison.Ordinal))
-        {
-            return Results.NotFound();
-        }
-
-        var clientRoot = Path.GetFullPath(Path.Combine(
-            environment.ContentRootPath,
-            "..",
-            "HearthCalendar.Client"));
-        var sourcePath = Path.Combine(clientRoot, "wwwroot", sourceName);
-
-        return File.Exists(sourcePath)
-            ? Results.File(sourcePath, "text/javascript; charset=utf-8")
-            : Results.NotFound();
     }
 
     private static IEnumerable<string> BrowserTestStaticFileRoots(IHostEnvironment environment)
@@ -224,74 +168,6 @@ internal static partial class BrowserTestServices
             ? "Release"
             : "Debug";
 
-    [GeneratedRegex("^(?<name>offline-calendar)\\.[a-z0-9]+\\.(?<extension>js)$", RegexOptions.IgnoreCase)]
-    private static partial Regex FingerprintedRootAssetRegex();
-}
-
-internal static class BrowserTestAuthOverride
-{
-    public const string AnonymousCookieName = "hearth-browser-test-auth";
-    public const string AnonymousCookieValue = "anonymous";
-
-    public static bool IsForceAnonymous(HttpContext context) =>
-        string.Equals(
-            context.Request.Cookies[AnonymousCookieName],
-            AnonymousCookieValue,
-            StringComparison.Ordinal);
-}
-
-internal sealed class BrowserTestPolicyEvaluator : IPolicyEvaluator
-{
-    public Task<AuthenticateResult> AuthenticateAsync(AuthorizationPolicy policy, HttpContext context)
-    {
-        if (BrowserTestAuthOverride.IsForceAnonymous(context))
-        {
-            return Task.FromResult(context.User.Identity?.IsAuthenticated == true
-                ? AuthenticateResult.Success(
-                    new AuthenticationTicket(context.User, CookieAuthenticationDefaults.AuthenticationScheme))
-                : AuthenticateResult.NoResult());
-        }
-
-        var principal = BrowserTestPrincipal();
-        context.User = principal;
-
-        return Task.FromResult(AuthenticateResult.Success(
-            new AuthenticationTicket(principal, CookieAuthenticationDefaults.AuthenticationScheme)));
-    }
-
-    public async Task<PolicyAuthorizationResult> AuthorizeAsync(
-        AuthorizationPolicy policy,
-        AuthenticateResult authenticationResult,
-        HttpContext context,
-        object? resource)
-    {
-        if (!authenticationResult.Succeeded || authenticationResult.Principal is null)
-        {
-            return PolicyAuthorizationResult.Challenge();
-        }
-
-        var authorizationService = context.RequestServices.GetRequiredService<IAuthorizationService>();
-        var authorizationResult = await authorizationService.AuthorizeAsync(
-            authenticationResult.Principal,
-            resource,
-            policy);
-
-        return authorizationResult.Succeeded
-            ? PolicyAuthorizationResult.Success()
-            : PolicyAuthorizationResult.Forbid();
-    }
-
-    private static ClaimsPrincipal BrowserTestPrincipal()
-    {
-        var claims = new[]
-        {
-            new Claim(ClaimTypes.NameIdentifier, "browser-test-admin"),
-            new Claim(ClaimTypes.Name, "Browser Test Admin"),
-            new Claim(HearthCalendarAuth.ScopeClaim, HearthCalendarAuth.AdminWebScope)
-        };
-
-        return new ClaimsPrincipal(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
-    }
 }
 
 internal sealed class BrowserTestHearthCalendarStore : IHearthCalendarStore

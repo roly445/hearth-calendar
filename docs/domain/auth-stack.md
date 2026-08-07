@@ -40,6 +40,8 @@ Initial approach:
 - one or more admin users supplied through configuration
 - passwords stored as PBKDF2-SHA256 hashes
 - cookie sessions for the review/admin UI
+- server-rendered login page at `/login` so unauthenticated users do not boot the WASM client before authentication
+- server-side app-shell authentication gate for page navigations into the admin workspace
 - first admin bootstrapped through environment variables or deployment secrets, with no default account and no public registration
 
 Potential later upgrade:
@@ -125,10 +127,13 @@ V1 can implement this as simple string scopes on credential documents. It does n
 | Endpoint | Auth | Required Scope / Policy |
 | --- | --- | --- |
 | `GET /health` | Anonymous | None. |
+| `GET /login` | Anonymous | Server-rendered login page only; does not boot the WASM app. |
+| `POST /login` | Anonymous | Valid configured admin username/password; issues admin cookie and redirects to `/`. |
 | `POST /api/admin/login` | Anonymous | Valid configured admin username/password. |
 | `POST /api/admin/logout` | Admin cookie | `admin:web`. |
 | `GET /api/admin/session` | Admin cookie | `admin:web`. |
-| `GET /` and Blazor fallback routes | Anonymous | App shell only; protected data still requires admin cookie. |
+| `GET /` and Blazor fallback routes | Admin cookie | `admin:web`; unauthenticated page navigation redirects to `/login`. |
+| Blazor static assets and PWA metadata | Anonymous | Required for authenticated app boot and installed PWA assets. |
 | BluQube UI commands and queries | Admin cookie | `admin:web`. |
 | `POST /api/intake/event` | Client token | `intake:write`. |
 | `POST /api/intake/home-assistant/event` | Client token | `intake:write`. |
@@ -138,6 +143,8 @@ V1 can implement this as simple string scopes on credential documents. It does n
 | `DELETE /caldav/*` | CalDAV auth | `caldav:write`, then exact-match delete policy. |
 
 The app should use ASP.NET Core fallback authorization so new endpoints are protected unless explicitly configured otherwise.
+
+The app shell is also protected before the client boots. HTML page navigations into the workspace are checked by server middleware and challenged with the admin cookie scheme. API, BluQube, SignalR, feed, CalDAV, and intake endpoints keep status-code based `401` or `403` responses instead of document redirects where appropriate.
 
 BluQube commands and queries used by the Blazor WebAssembly UI should also require authorization by default through BluQube authorization. Anonymous BluQube requests, such as a future login/bootstrap command, must be explicitly marked.
 
@@ -298,7 +305,7 @@ Recommended model:
 
 | Environment | Allowed Origins |
 | --- | --- |
-| local development | explicit localhost origins for the Blazor WASM dev server and ASP.NET Core host |
+| local development | explicit `*.dev.localhost` origins for the Blazor WASM dev server and ASP.NET Core host |
 | home/self-hosted production | the configured public/internal app origin only |
 | test/staging | explicit staging origins only |
 
@@ -447,7 +454,8 @@ Implement auth in this order:
 
 - New endpoints require authorization by default.
 - `GET /health` is explicitly anonymous.
-- Admin login is explicitly anonymous and issues an admin cookie only for valid configured credentials.
+- Admin login is explicitly anonymous, is rendered server-side, and issues an admin cookie only for valid configured credentials.
+- The WASM app shell is not served for unauthenticated workspace navigation.
 - Admin session and logout endpoints require an authenticated admin cookie.
 - Home Assistant intake requires a client credential with `intake:write`.
 - Feed endpoints require a feed token scoped to the requested virtual calendar.

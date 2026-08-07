@@ -22,7 +22,30 @@ Hearth Calendar is a .NET family calendar app that owns calendar policy and stor
 
 ## Local Configuration
 
-The server requires `Database:ConnectionString` at startup. Keep real connection strings out of source control; set `Database__ConnectionString` in the local environment or use .NET user secrets for development.
+The server requires `Database:ConnectionString` at startup. Keep real connection strings out of source control; set `Database__ConnectionString` in the local environment or create an ignored local settings file for development.
+
+For local HTTPS development, use the app-specific `.dev.localhost` host:
+
+```powershell
+dotnet dev-certs https --trust
+docker compose up -d postgres
+Copy-Item .\src\HearthCalendar.Server\appsettings.Local.example.json .\src\HearthCalendar.Server\appsettings.Local.json
+dotnet run --project .\src\HearthCalendar.Server\HearthCalendar.Server.csproj --launch-profile https
+```
+
+The compose file starts PostgreSQL on `localhost:5432` with database `hearth_calendar_dev`, username `postgres`, and password `postgres`. Edit `src/HearthCalendar.Server/appsettings.Local.json` with your local admin password hash before signing in. The file is ignored by Git. The HTTPS profile serves `https://hearth-calendar.dev.localhost:7129`. Add the host to the Windows hosts file if it does not resolve locally.
+
+## VS Code Debugging
+
+The repo includes shared VS Code tasks and a launch profile. First run:
+
+```powershell
+dotnet restore .\HearthCalendar.slnx --disable-parallel
+docker compose up -d postgres
+npm install
+```
+
+Then open the Run and Debug panel and start `Hearth Calendar Server (HTTPS)`. The launch profile builds client assets, builds the solution, starts the server on `https://hearth-calendar.dev.localhost:7129`, and opens the browser when Kestrel is ready.
 
 ## Local Checks
 

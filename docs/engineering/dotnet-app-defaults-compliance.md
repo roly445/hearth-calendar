@@ -108,6 +108,7 @@ Adopt now:
 - Require authorization by default for ASP.NET Core endpoints.
 - Require authorization by default for BluQube commands and queries.
 - Make anonymous endpoints explicit.
+- Render the login page on the server and gate the WASM app shell before client boot.
 - Use separate auth lanes for:
   - admin cookie sessions
   - client write tokens
@@ -122,7 +123,8 @@ Adopt now:
 Acceptance criteria:
 
 - `GET /health` is explicitly anonymous.
-- Admin UI requires an authenticated admin session.
+- `GET /login` and `POST /login` are explicitly anonymous server-rendered login endpoints.
+- Admin UI and the WASM app shell require an authenticated admin session.
 - Home Assistant intake requires `intake:write`.
 - Feed tokens cannot write.
 - Client write tokens cannot access admin UI.
@@ -229,9 +231,11 @@ Acceptance criteria:
 Adopt now:
 
 - Blazor WASM client uses BluQube runners for server request/response work.
+- Login is statically rendered server-side so unauthenticated users do not boot the WASM client.
 - SignalR only pushes invalidation/change notifications.
 - UI refreshes data through BluQube queries after SignalR messages.
 - PWA offline mode only queues safe new event intents.
+- Service-worker navigation requests are network-first while online so server auth gates run before cached app-shell fallback.
 - Approve, reject, delete, and reschedule require current server state.
 - Authored browser code uses SCSS and TypeScript; generated CSS, JavaScript, and PWA output are written to ignored `wwwroot`.
 

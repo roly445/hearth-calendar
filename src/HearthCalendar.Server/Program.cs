@@ -3,6 +3,7 @@ using BluQube.Authorization;
 using BluQube.Commands;
 using BluQube.Queries;
 using FluentValidation;
+using System.Text.RegularExpressions;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.CalDav;
 using HearthCalendar.Server.Feeds;
@@ -14,6 +15,10 @@ using HearthCalendar.Server.SignalR;
 using HearthCalendar.Server.Testing;
 using HearthCalendar.Client.Contracts.Ui;
 using HearthCalendar.Server.Domain;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
@@ -32,11 +37,14 @@ public class Program
         }
 
         var builder = WebApplication.CreateBuilder(args);
+        ConfigureLocalDevelopmentConfiguration(builder.Configuration, builder.Environment);
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
         builder.WebHost.ConfigureKestrel(ConfigureKestrelServerOptions);
         builder.Services.AddHearthCalendarPersistence(builder.Configuration);
         builder.Services.AddBrowserTestServices(builder.Configuration, builder.Environment);
+        ConfigureLocalDevelopmentDataProtection(builder.Services, builder.Environment);
         builder.Services.AddHearthCalendarAuth(builder.Configuration);
+        builder.Services.AddRazorComponents();
         builder.Services.Configure<HearthCalendarSecurityOptions>(builder.Configuration.GetSection("Security"));
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSignalR();
@@ -86,14 +94,15 @@ public class Program
 
         app.UseSecurityHeaders();
         app.UseCors(ConfiguredOriginsPolicy);
+        app.UseAuthentication();
+        app.UseBrowserTestAuthentication();
+        app.UseAppShellAuthenticationGate();
         app.UseBrowserTestStaticFiles();
         if (!app.IsBrowserTestSeedDataEnabled())
         {
             app.UseBlazorFrameworkFiles();
         }
         app.UseStaticFiles();
-        app.UseAuthentication();
-        app.UseBrowserTestAuthentication();
         app.UseAuthorization();
 
         app.MapGet("/health", () => Results.Ok(new HealthResponse("Healthy")))
@@ -105,14 +114,11 @@ public class Program
         app.MapCalDavEndpoints();
         app.MapHub<CalendarUpdatesHub>("/hubs/calendar-updates");
         app.AddBluQubeApi();
+        app.MapClientRootFingerprintAssets();
         app.MapBrowserTestAppShell();
-        if (!app.IsBrowserTestSeedDataEnabled())
-        {
-            app.MapStaticAssets();
-        }
 
         app.MapFallbackToFile("/index.html")
-            .AllowAnonymous();
+            .RequireAuthorization(HearthCalendarAuth.AdminPolicy);
 
         app.Run();
 
@@ -135,6 +141,40 @@ public class Program
     public static void ConfigureKestrelServerOptions(KestrelServerOptions options)
     {
         options.AddServerHeader = false;
+    }
+
+    public static void ConfigureLocalDevelopmentConfiguration(
+        ConfigurationManager configuration,
+        IHostEnvironment environment)
+    {
+        if (!environment.IsDevelopment())
+        {
+            return;
+        }
+
+        configuration.AddJsonFile(
+            "appsettings.Local.json",
+            optional: true,
+            reloadOnChange: true);
+    }
+
+    public static void ConfigureLocalDevelopmentDataProtection(
+        IServiceCollection services,
+        IHostEnvironment environment)
+    {
+        if (!environment.IsDevelopment() && !environment.IsEnvironment("Test"))
+        {
+            return;
+        }
+
+        var keyDirectory = new DirectoryInfo(Path.Combine(
+            environment.ContentRootPath,
+            ".local",
+            "data-protection-keys"));
+        keyDirectory.Create();
+        services
+            .AddDataProtection()
+            .PersistKeysToFileSystem(keyDirectory);
     }
 
     public static bool ShouldValidateServiceProvider(string environmentName)
@@ -194,4 +234,108 @@ internal static class SecurityHeadersMiddleware
             await next();
         });
     }
+}
+
+internal static class AppShellAuthenticationGateMiddleware
+{
+    public static IApplicationBuilder UseAppShellAuthenticationGate(this IApplicationBuilder app)
+    {
+        return app.Use(async (context, next) =>
+        {
+            if (!IsProtectedAppShellNavigation(context.Request))
+            {
+                await next();
+                return;
+            }
+
+            var authorization = context.RequestServices.GetRequiredService<IAuthorizationService>();
+            var result = await authorization.AuthorizeAsync(
+                context.User,
+                null,
+                HearthCalendarAuth.AdminPolicy);
+
+            if (result.Succeeded)
+            {
+                await next();
+                return;
+            }
+
+            if (context.User.Identity?.IsAuthenticated == true)
+            {
+                await context.ForbidAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                return;
+            }
+
+            await context.ChallengeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+        });
+    }
+
+    private static bool IsProtectedAppShellNavigation(HttpRequest request)
+    {
+        if (!HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method))
+        {
+            return false;
+        }
+
+        if (!AcceptsHtml(request))
+        {
+            return false;
+        }
+
+        if (IsAnonymousPath(request.Path))
+        {
+            return false;
+        }
+
+        return !Path.HasExtension(request.Path);
+    }
+
+    private static bool AcceptsHtml(HttpRequest request) =>
+        request.Headers.Accept.Count == 0 ||
+        request.Headers.Accept.Any(value =>
+            value?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true);
+
+    private static bool IsAnonymousPath(PathString path) =>
+        path.StartsWithSegments("/login", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/health", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/caldav", StringComparison.OrdinalIgnoreCase) ||
+        path.StartsWithSegments("/feeds", StringComparison.OrdinalIgnoreCase);
+}
+
+internal static partial class ClientRootFingerprintAssets
+{
+    public static IEndpointRouteBuilder MapClientRootFingerprintAssets(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet(
+                "/{fileName:regex(^offline-calendar\\.[a-z0-9]+\\.js$)}",
+                ClientRootFingerprintAssetAsync)
+            .AllowAnonymous();
+
+        return endpoints;
+    }
+
+    private static IResult ClientRootFingerprintAssetAsync(string fileName, IHostEnvironment environment)
+    {
+        var sourceName = FingerprintedRootAssetRegex()
+            .Replace(fileName, "${name}.${extension}");
+        if (string.Equals(sourceName, fileName, StringComparison.Ordinal))
+        {
+            return Results.NotFound();
+        }
+
+        var clientRoot = Path.GetFullPath(Path.Combine(
+            environment.ContentRootPath,
+            "..",
+            "HearthCalendar.Client"));
+        var sourcePath = Path.Combine(clientRoot, "wwwroot", sourceName);
+
+        return File.Exists(sourcePath)
+            ? Results.File(sourcePath, "text/javascript; charset=utf-8")
+            : Results.NotFound();
+    }
+
+    [GeneratedRegex("^(?<name>offline-calendar)\\.[a-z0-9]+\\.(?<extension>js)$", RegexOptions.IgnoreCase)]
+    private static partial Regex FingerprintedRootAssetRegex();
 }

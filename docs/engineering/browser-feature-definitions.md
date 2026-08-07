@@ -30,6 +30,7 @@ Future browser automation should treat these feature files as the source of
 intent. Tests may use user-visible roles and labels directly, with explicit test
 IDs only where the UI has no stable accessible handle.
 
-The first browser automation slice should cover the scenarios that are already
-implemented by the app. Auth/session scenarios can remain pending until the admin
-sign-in flow exists.
+Browser automation should cover the scenarios that are already implemented by
+the app. Auth/session coverage now exercises the server-rendered login flow,
+including the rule that unauthenticated users do not load the WASM app shell
+before signing in.
