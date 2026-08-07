@@ -4,11 +4,7 @@
     {
         <p class="empty-state">@StatusMessage</p>
     }
-    else if (Items.Count == 0)
-    {
-        <p class="empty-state">No approved events in the next 60 days.</p>
-    }
-    else
+    @if (Items.Count > 0)
     {
         <div class="event-list">
             @foreach (var calendarEvent in Items)
@@ -23,5 +19,9 @@
                 </article>
             }
         </div>
+    }
+    else if (string.IsNullOrWhiteSpace(StatusMessage))
+    {
+        <p class="empty-state">No approved events in the next 60 days.</p>
     }
 </section>

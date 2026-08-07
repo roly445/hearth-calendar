@@ -20,6 +20,7 @@ public partial class Home : IAsyncDisposable
     private bool isSubmitting;
     private bool isOffline;
     private bool isStale;
+    private bool isSyncingQueuedIntents;
     private string? message;
     private bool CanUseOnlineActions => !isOffline && !isStale && !isLoading;
 
@@ -229,42 +230,55 @@ public partial class Home : IAsyncDisposable
 
     private async Task SyncQueuedIntentsAsync()
     {
+        if (isSyncingQueuedIntents)
+        {
+            return;
+        }
+
+        isSyncingQueuedIntents = true;
         var outbox = (await OfflineStore.ReadOutboxAsync()).ToArray();
 
-        foreach (var queued in outbox.ToArray())
+        try
         {
-            var attemptedAt = DateTimeOffset.Now;
-            outbox = ReplaceQueuedIntent(outbox, OfflineCalendarState.MarkSyncing(queued, attemptedAt));
-            await OfflineStore.StoreOutboxAsync(outbox);
-
-            try
+            foreach (var queued in outbox.ToArray())
             {
-                var result = await CommandRunner.Send(new SubmitWebEventIntentCommand(
-                    queued.RawText,
-                    queued.Date,
-                    queued.StartTime,
-                    queued.EndTime));
+                var attemptedAt = DateTimeOffset.Now;
+                outbox = ReplaceQueuedIntent(outbox, OfflineCalendarState.MarkSyncing(queued, attemptedAt));
+                await OfflineStore.StoreOutboxAsync(outbox);
 
-                if (result.Status == CommandResultStatus.Succeeded)
+                try
                 {
-                    outbox = OfflineCalendarState.RemoveSynced(outbox, queued.LocalId).ToArray();
-                    message = "Queued event synced and is waiting for server review.";
+                    var result = await CommandRunner.Send(new SubmitWebEventIntentCommand(
+                        queued.RawText,
+                        queued.Date,
+                        queued.StartTime,
+                        queued.EndTime));
+
+                    if (result.Status == CommandResultStatus.Succeeded)
+                    {
+                        outbox = OfflineCalendarState.RemoveSynced(outbox, queued.LocalId).ToArray();
+                        message = "Queued event synced and is waiting for server review.";
+                    }
+                    else
+                    {
+                        outbox = ReplaceQueuedIntent(
+                            outbox,
+                            OfflineCalendarState.MarkSyncFailed(queued, attemptedAt, CommandMessage(result.Status)));
+                    }
                 }
-                else
+                catch (Exception)
                 {
                     outbox = ReplaceQueuedIntent(
                         outbox,
-                        OfflineCalendarState.MarkSyncFailed(queued, attemptedAt, CommandMessage(result.Status)));
+                        OfflineCalendarState.MarkSyncFailed(queued, attemptedAt, "Sync will retry when the connection is stable."));
                 }
-            }
-            catch (Exception)
-            {
-                outbox = ReplaceQueuedIntent(
-                    outbox,
-                    OfflineCalendarState.MarkSyncFailed(queued, attemptedAt, "Sync will retry when the connection is stable."));
-            }
 
-            await OfflineStore.StoreOutboxAsync(outbox);
+                await OfflineStore.StoreOutboxAsync(outbox);
+            }
+        }
+        finally
+        {
+            isSyncingQueuedIntents = false;
         }
     }
 
