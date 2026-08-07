@@ -1,0 +1,6 @@
+{
+  StatusCode: Found,
+  Location: /,
+  HasSetCookie: true,
+  BodyContainsRawPassword: false
+}

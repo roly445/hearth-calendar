@@ -24,7 +24,7 @@ Initial jobs:
 - set up Node.js
 - restore client asset dependencies
 - run client asset tests
-- restore
+- restore with NuGet parallelism disabled, which avoids socket exhaustion in constrained local and CI environments
 - build with warnings as errors
 - run fast .NET tests that do not require Docker
 - run Docker-backed Marten/PostgreSQL tests in a separate named job
@@ -63,7 +63,7 @@ jobs:
         run: npm run test:assets
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore --disable-parallel
 
       - name: Build
         run: dotnet build --configuration Release --no-restore

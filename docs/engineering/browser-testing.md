@@ -21,9 +21,11 @@ npm run test:browser
 
 Playwright starts `HearthCalendar.Server` through `playwright.config.ts`. The app is given a generic, non-secret database connection string so startup configuration validation passes.
 
-The browser configuration also sets `BrowserTests__UseSeedData=true` while running the server in the `Test` environment. That switch enables a narrow in-memory store and test admin principal for browser smoke coverage. It is only active when both the environment and config flag are set, and it must not be enabled in production deployments.
+The browser configuration also sets `BrowserTests__UseSeedData=true` while running the server in the `Test` environment. That switch enables a narrow in-memory store for browser smoke coverage. It is only active when both the environment and config flag are set, and it must not be enabled in production deployments.
 
-Auth/session browser tests can opt out of the automatic test principal by setting the `hearth-browser-test-auth=anonymous` cookie. That keeps existing smoke tests terse while still allowing browser coverage to exercise the real login, session, and logout paths with a generic configured test admin.
+Browser tests authenticate through the same server-rendered `/login` form as a user. Shared helpers in `tests/HearthCalendar.BrowserTests/browser-admin.ts` sign in with the generic configured browser-test admin before exercising protected workspace features.
+
+Unauthenticated browser tests should verify that `/` redirects to `/login` and that the login page renders without loading the WASM app shell. Authenticated workspace tests should sign in explicitly rather than relying on seeded mode to grant a principal.
 
 The suite records screenshots and videos for browser-level evidence. CI uploads the Playwright report and per-test media as the `browser-test-evidence` artifact on every run, including failed runs. Keep those generated folders out of commits.
 
@@ -46,6 +48,7 @@ When targeting an existing server, make sure it uses public-repo-safe test data 
 - Keep test data generic, for example `Adult A`, `Adult B`, `Child`, `Family planning`, and `Adult A dentist`.
 - Do not commit raw admin passwords, bearer tokens, feed tokens, CalDAV secrets, local hostnames, or private calendar names.
 - Keep generated `wwwroot` output out of Git. The server build generates client assets as part of the normal build.
+- Treat PWA service-worker state as part of browser behavior. Page navigations should reach the server while online so the server auth gate can run before cached app-shell fallback is used.
 
 ## Follow-Up Coverage
 

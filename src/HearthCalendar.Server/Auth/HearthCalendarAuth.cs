@@ -7,6 +7,7 @@ using HearthCalendar.Server.Persistence;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
 namespace HearthCalendar.Server.Auth;
@@ -46,12 +47,21 @@ public static class HearthCalendarAuth
             })
             .AddCookie(options =>
             {
+                options.LoginPath = "/login";
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
                 options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 options.Events.OnRedirectToLogin = context =>
                 {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    if (RequiresStatusCodeChallenge(context.Request))
+                    {
+                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    }
+                    else
+                    {
+                        context.Response.Redirect("/login");
+                    }
+
                     return Task.CompletedTask;
                 };
                 options.Events.OnRedirectToAccessDenied = context =>
@@ -108,6 +118,12 @@ public static class HearthCalendarAuth
 
         return services;
     }
+
+    private static bool RequiresStatusCodeChallenge(HttpRequest request) =>
+        request.Path.StartsWithSegments("/api", StringComparison.OrdinalIgnoreCase) ||
+        request.Path.StartsWithSegments("/hubs", StringComparison.OrdinalIgnoreCase) ||
+        request.Path.StartsWithSegments("/caldav", StringComparison.OrdinalIgnoreCase) ||
+        request.Path.StartsWithSegments("/feeds", StringComparison.OrdinalIgnoreCase);
 }
 
 public sealed record HearthCalendarAuthOptions
@@ -261,6 +277,13 @@ public static class AdminAuthEndpoints
 {
     public static IEndpointRouteBuilder MapAdminAuthEndpoints(this IEndpointRouteBuilder endpoints)
     {
+        endpoints.MapGet("/login", () => RenderLoginPage())
+            .AllowAnonymous();
+        endpoints.MapPost(
+                "/login",
+                async (HttpContext context, IOptions<HearthCalendarAuthOptions> options) =>
+                    await FormLoginAsync(context, options))
+            .AllowAnonymous();
         endpoints.MapPost(
                 "/api/admin/login",
                 async (AdminLoginRequest request, HttpContext context, IOptions<HearthCalendarAuthOptions> options) =>
@@ -279,13 +302,55 @@ public static class AdminAuthEndpoints
         HttpContext context,
         IOptions<HearthCalendarAuthOptions> options)
     {
-        var admin = options.Value.AdminUsers.FirstOrDefault(candidate =>
-            string.Equals(candidate.Username, request.Username, StringComparison.Ordinal));
-        if (admin is null || !HearthCalendarAdminPasswordHasher.Matches(request.Password, admin.PasswordHash))
+        var admin = FindAdmin(request.Username, request.Password, options.Value);
+        if (admin is null)
         {
             return Results.Unauthorized();
         }
 
+        await SignInAdminAsync(context, admin);
+
+        return Results.Ok(new AdminLoginResponse(admin.DisplayName));
+    }
+
+    private static async Task<IResult> FormLoginAsync(
+        HttpContext context,
+        IOptions<HearthCalendarAuthOptions> options)
+    {
+        if (!context.Request.HasFormContentType)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return RenderLoginPage("Sign in failed. Check the details and try again.");
+        }
+
+        var form = await context.Request.ReadFormAsync(context.RequestAborted);
+        var admin = FindAdmin(form["username"].ToString(), form["password"].ToString(), options.Value);
+        if (admin is null)
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return RenderLoginPage("Sign in failed. Check the details and try again.");
+        }
+
+        await SignInAdminAsync(context, admin);
+
+        return Results.Redirect("/");
+    }
+
+    private static AdminUserOptions? FindAdmin(
+        string username,
+        string password,
+        HearthCalendarAuthOptions options)
+    {
+        var admin = options.AdminUsers.FirstOrDefault(candidate =>
+            string.Equals(candidate.Username, username, StringComparison.Ordinal));
+
+        return admin is null || !HearthCalendarAdminPasswordHasher.Matches(password, admin.PasswordHash)
+            ? null
+            : admin;
+    }
+
+    private static async Task SignInAdminAsync(HttpContext context, AdminUserOptions admin)
+    {
         var scopes = admin.Scopes.Count == 0 ? [HearthCalendarAuth.AdminWebScope] : admin.Scopes;
         var claims = new List<Claim>
         {
@@ -308,9 +373,14 @@ public static class AdminAuthEndpoints
                 IsPersistent = false,
                 AllowRefresh = true
             });
-
-        return Results.Ok(new AdminLoginResponse(admin.DisplayName));
     }
+
+    private static RazorComponentResult<LoginPage> RenderLoginPage(string? message = null) =>
+        new(new Dictionary<string, object?>
+        {
+            [nameof(LoginPage.Message)] = message
+        });
+
 
     private static async Task LogoutAsync(HttpContext context)
     {

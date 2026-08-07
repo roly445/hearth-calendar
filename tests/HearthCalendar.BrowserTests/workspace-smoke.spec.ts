@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { signInAsBrowserAdmin } from "./browser-admin";
 
 test.describe("calendar workspace smoke", () => {
   test("loads the authenticated workspace with generic test data", async ({ page }) => {
-    await page.goto("/");
+    await signInAsBrowserAdmin(page);
 
     await expect(page.getByRole("heading", { name: "Hearth Calendar" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("Online")).toBeVisible();

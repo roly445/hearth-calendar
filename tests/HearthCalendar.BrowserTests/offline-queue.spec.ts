@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { signInAsBrowserAdmin } from "./browser-admin";
 
 test.describe("offline event queue", () => {
   test("queues an event while offline and syncs it after reconnecting", async ({ page }) => {
     const title = `Family offline sync ${Date.now()}`;
     const createPanel = page.locator(".create-panel");
 
-    await page.goto("/");
+    await signInAsBrowserAdmin(page);
 
     await expect(page.getByRole("heading", { name: "Hearth Calendar" })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("Online")).toBeVisible();

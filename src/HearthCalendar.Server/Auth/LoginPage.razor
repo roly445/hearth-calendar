@@ -1,0 +1,36 @@
+@namespace HearthCalendar.Server.Auth
+@using Microsoft.AspNetCore.Components
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign In - Hearth Calendar</title>
+    <link rel="stylesheet" href="/css/app.css">
+</head>
+<body class="auth-page">
+    <main class="auth-shell">
+        <section class="login-panel" aria-labelledby="sign-in-heading">
+            <p class="eyebrow">Admin access</p>
+            <h1 id="sign-in-heading">Sign In</h1>
+            <p class="login-copy">Use an admin account to open the calendar workspace.</p>
+            @if (!string.IsNullOrWhiteSpace(Message))
+            {
+                <p class="notice" role="alert">@Message</p>
+            }
+            <form method="post" action="/login">
+                <div>
+                    <label for="username">Username</label>
+                    <input id="username" name="username" autocomplete="username" required>
+                </div>
+                <div>
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required>
+                </div>
+                <button class="primary-action" type="submit">Sign in</button>
+            </form>
+        </section>
+    </main>
+</body>
+</html>

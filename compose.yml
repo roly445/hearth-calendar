@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: hearth-calendar-postgres
+    environment:
+      POSTGRES_DB: hearth_calendar_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - hearth-calendar-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hearth_calendar_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  hearth-calendar-postgres-data:

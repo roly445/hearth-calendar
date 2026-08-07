@@ -1,0 +1,24 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Hearth Calendar Server (HTTPS)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/HearthCalendar.Server/bin/Debug/net10.0/HearthCalendar.Server.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/HearthCalendar.Server",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https://\\S+)"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "https://hearth-calendar.dev.localhost:7129;http://hearth-calendar.dev.localhost:5273"
+      },
+      "console": "integratedTerminal"
+    }
+  ]
+}

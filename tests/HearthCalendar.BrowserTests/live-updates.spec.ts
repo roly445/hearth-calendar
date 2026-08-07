@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { signInAsBrowserAdmin } from "./browser-admin";
 
 test.describe("live calendar updates", () => {
   test("refreshes another open workspace after review queue and calendar event changes", async ({ browser }) => {
@@ -12,8 +13,8 @@ test.describe("live calendar updates", () => {
     const createPanel = source.locator(".create-panel");
 
     try {
-      await target.goto("/");
-      await source.goto("/");
+      await signInAsBrowserAdmin(target);
+      await signInAsBrowserAdmin(source);
 
       await expect(target.getByRole("heading", { name: "Hearth Calendar" })).toBeVisible({ timeout: 30_000 });
       await expect(source.getByRole("heading", { name: "Hearth Calendar" })).toBeVisible({ timeout: 30_000 });

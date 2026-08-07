@@ -1,0 +1,21 @@
+﻿{
+  RootResponse: {
+    StatusCode: Found,
+    Location: /login,
+    HasSetCookie: false
+  },
+  WorkspaceResponse: {
+    StatusCode: Found,
+    Location: /login,
+    HasSetCookie: false
+  },
+  LoginShell: {
+    StatusCode: OK,
+    RawText: /login,
+    IsExplicitlyAnonymous: true,
+    ContainsAppStylesheet: true,
+    ContainsLoginPanel: true,
+    ContainsBlazorBootScript: false,
+    ContainsWebAssemblyRoot: false
+  }
+}

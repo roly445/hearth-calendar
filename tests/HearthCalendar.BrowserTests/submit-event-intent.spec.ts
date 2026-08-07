@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
+import { signInAsBrowserAdmin } from "./browser-admin";
 
 test.describe("submit event intent", () => {
   test("creates a generic approved event through the workspace form", async ({ page }) => {
-    await page.goto("/");
+    await signInAsBrowserAdmin(page);
 
     await expect(page.getByRole("heading", { name: "Hearth Calendar" })).toBeVisible({ timeout: 30_000 });
 

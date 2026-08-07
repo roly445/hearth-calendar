@@ -1,26 +1,8 @@
 import { expect, Page, test } from "@playwright/test";
-
-const baseURL = process.env.HEARTH_CALENDAR_BROWSER_BASE_URL ?? "http://127.0.0.1:5179";
-const browserTestAuthCookie = {
-  name: "hearth-browser-test-auth",
-  value: "anonymous",
-  url: baseURL
-};
+import { signInAsBrowserAdmin } from "./browser-admin";
 
 async function forceAnonymousMode(page: Page) {
-  await page.context().addCookies([browserTestAuthCookie]);
-}
-
-async function signInAsBrowserAdmin(page: Page) {
-  await forceAnonymousMode(page);
-  await page.goto("/");
-
-  await expect(page).toHaveURL(/\/login$/);
-  await page.getByLabel("Username").fill("browser-test-admin");
-  await page.getByLabel("Password").fill("browser-test-password");
-  await page.getByRole("button", { name: "Sign in" }).click();
-
-  await expect(page.getByRole("heading", { name: "Hearth Calendar" })).toBeVisible({ timeout: 30_000 });
+  await page.context().clearCookies();
 }
 
 test.describe("authenticated admin session", () => {
