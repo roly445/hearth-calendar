@@ -18,7 +18,10 @@ test.describe("calendar workspace smoke", () => {
     await expect(page.getByText("PastEvent: Past non-reference events need confirmation.")).toBeVisible();
 
     await expect(page.getByRole("heading", { name: "Upcoming" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Family planning" })).toBeVisible();
-    await expect(page.getByText("Family", { exact: true })).toBeVisible();
+    const seededEvent = page.locator("article.event-row").filter({
+      has: page.getByRole("heading", { name: "Family planning" })
+    });
+    await expect(seededEvent).toBeVisible();
+    await expect(seededEvent.getByText("Family", { exact: true })).toBeVisible();
   });
 });

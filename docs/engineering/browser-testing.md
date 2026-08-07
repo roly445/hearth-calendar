@@ -23,6 +23,8 @@ Playwright starts `HearthCalendar.Server` through `playwright.config.ts`. The ap
 
 The browser configuration also sets `BrowserTests__UseSeedData=true` while running the server in the `Test` environment. That switch enables a narrow in-memory store and test admin principal for browser smoke coverage. It is only active when both the environment and config flag are set, and it must not be enabled in production deployments.
 
+The suite records screenshots and videos for browser-level evidence. CI uploads the Playwright report and per-test media as the `browser-test-evidence` artifact on every run, including failed runs. Keep those generated folders out of commits.
+
 ## Configuration
 
 Useful environment variables:

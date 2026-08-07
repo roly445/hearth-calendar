@@ -8,10 +8,12 @@ export default defineConfig({
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["github"], ["list"]] : "list",
+  reporter: process.env.CI ? [["github"], ["list"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
-    trace: "on-first-retry"
+    screenshot: "on",
+    trace: "on-first-retry",
+    video: "on"
   },
   webServer: {
     command: `dotnet run --configuration Release --project src/HearthCalendar.Server/HearthCalendar.Server.csproj --no-launch-profile --urls ${baseURL}`,
