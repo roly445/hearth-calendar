@@ -8,6 +8,7 @@ using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.CalDav;
 using HearthCalendar.Server.Feeds;
 using HearthCalendar.Server.Features.Credentials;
+using HearthCalendar.Server.Features.Household;
 using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;

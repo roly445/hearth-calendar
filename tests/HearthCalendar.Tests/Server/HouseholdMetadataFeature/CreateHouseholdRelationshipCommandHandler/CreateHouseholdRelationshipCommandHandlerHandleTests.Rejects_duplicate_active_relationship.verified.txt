@@ -1,0 +1,7 @@
+{
+  Status: Failed,
+  ErrorData: {
+    Code: DUPLICATE_HOUSEHOLD_RELATIONSHIP,
+    Message: That active household relationship already exists.
+  }
+}

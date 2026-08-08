@@ -134,6 +134,8 @@ Initial implementation note:
 
 - `adult-a`, `adult-b`, and `child` are generic compatibility defaults.
 - `KnownPeople` is a bridge over default household metadata while persistence and admin UI are still future slices.
+- Household metadata persistence stores members and relationships as app configuration documents in Marten.
+- The management API is exposed through BluQube admin commands and queries before the runtime review resolver switches to persisted metadata.
 - Future calendar views should filter over household members, relationships, event categories, responsibilities, and tags.
 - Committed examples and tests must use generic labels rather than real personal names.
 
