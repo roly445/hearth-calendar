@@ -760,7 +760,7 @@ public static class HearthCalendarDocumentMapping
                 .Select(clash => new Clash(
                     new CalendarEventId(clash.ConflictingEventId),
                     clash.AffectedPersonIds
-                        .Select(personId => KnownPeople.All.FirstOrDefault(person => person.Id.Value == personId) ??
+                        .Select(personId => DefaultHouseholdMetadata.Instance.FindPerson(new PersonId(personId)) ??
                             new Person(new PersonId(personId), personId, PersonKind.Adult))
                         .ToArray(),
                     Enum.Parse<ClashSeverity>(clash.Severity),
