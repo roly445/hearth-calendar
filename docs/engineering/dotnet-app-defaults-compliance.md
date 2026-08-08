@@ -225,6 +225,7 @@ Acceptance criteria:
 - Domain tests do not require PostgreSQL.
 - Persistence tests use real Marten/PostgreSQL behaviour.
 - Auth tests prove feed tokens cannot write and write tokens cannot administer.
+- Human admin auth uses ASP.NET Core Identity with a package-backed BCrypt password hasher rather than app-owned password verification.
 
 ## Frontend
 
@@ -249,7 +250,6 @@ Acceptance criteria:
 
 Skip until there is a clear product need:
 
-- full ASP.NET Identity
 - public registration
 - password reset email flow
 - OAuth/OIDC login

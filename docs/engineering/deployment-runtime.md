@@ -29,7 +29,7 @@ Use environment variables, a deployment secret store, or the ignored `appsetting
 | --- | --- | --- | --- |
 | `Database:ConnectionString` | Yes | `Host=db.example;Port=5432;Database=hearth_calendar;Username=app_user;Password=<secret>;SSL Mode=Require` | Required at startup and validated with `ValidateOnStart`. Use `Database__ConnectionString` as an environment variable. |
 | `Database:SchemaName` | No | `hearth_calendar` | Defaults to `hearth_calendar`. Keep this stable after deployment unless a migration plan exists. |
-| `Auth:AdminUsers` | Yes for admin UI access | See below | Admin users are configured with password hashes, not raw passwords. |
+| `Auth:AdminUsers` | Yes for admin UI access | See below | Bootstrap admin users are configured from secrets/env/local config. ASP.NET Core Identity stores BCrypt password hashes in PostgreSQL. |
 | `Security:Cors:AllowedOrigins` | Required when the browser origin differs from the server origin | `https://calendar.example.invalid` | Leave empty for same-origin deployments. Never use wildcard origins with credentials. |
 
 ### Environment Variable Mapping
@@ -73,30 +73,22 @@ docker compose up -d postgres
 Copy-Item .\src\HearthCalendar.Server\appsettings.Local.example.json .\src\HearthCalendar.Server\appsettings.Local.json
 ```
 
-The compose file starts PostgreSQL on `localhost:5432` with database `hearth_calendar_dev`, username `postgres`, and password `postgres`. Then edit the ignored local file with your local admin password hash. Use different credentials outside local development.
+The compose file starts PostgreSQL on `localhost:5432` with database `hearth_calendar_dev`, username `postgres`, and password `postgres`. Then edit the ignored local file with your local bootstrap admin password. Use different credentials outside local development.
 
 ## First Admin Bootstrap
 
 The first admin user is provisioned out-of-band through configuration. The app does not ship with a default admin account and does not expose public registration.
 
-Generate the password hash locally and pass only the hash to the running app:
-
-```powershell
-$password = Read-Host -Prompt "Admin password" -MaskInput
-$password | dotnet run --no-launch-profile --project src/HearthCalendar.Server -- admin-password-hash --password-stdin
-Remove-Variable password
-```
-
-Use the generated value as the first admin's password hash:
+Pass the bootstrap password through a deployment secret store, process environment, user secrets, or the ignored local settings file. At startup the app creates or updates a real ASP.NET Core Identity admin user and stores the password as a BCrypt hash.
 
 ```text
 Auth__AdminUsers__0__Username=admin-user
 Auth__AdminUsers__0__DisplayName=Calendar Admin
-Auth__AdminUsers__0__PasswordHash=pbkdf2-sha256:<iterations>:<salt>:<hash>
+Auth__AdminUsers__0__Password=<secret>
 Auth__AdminUsers__0__Scopes__0=admin:web
 ```
 
-For local development, prefer .NET user secrets or process-level environment variables. For deployment, use the host's secret store or environment-variable management. Do not commit the generated hash if it belongs to a real deployment, and never commit or log the raw password.
+For local development, prefer .NET user secrets, process-level environment variables, or `appsettings.Local.json`. For deployment, use the host's secret store or environment-variable management. Never commit or log the raw password.
 
 ## Optional Bootstrap Credentials
 
@@ -104,7 +96,7 @@ The app supports bootstrap credentials in configuration and runtime-managed cred
 
 ### Admin Users
 
-Admin users are configured under `Auth:AdminUsers`. Passwords must be stored as PBKDF2 hashes produced by the app's admin password hashing command, not as raw passwords.
+Admin users are configured under `Auth:AdminUsers` only for bootstrap. Identity owns the persisted user, role, claim, lockout, and password hash records after startup.
 
 ```json
 {
@@ -113,7 +105,7 @@ Admin users are configured under `Auth:AdminUsers`. Passwords must be stored as 
       {
         "Username": "admin-user",
         "DisplayName": "Calendar Admin",
-        "PasswordHash": "pbkdf2-sha256:<iterations>:<salt>:<hash>",
+        "Password": "<secret-from-secret-store>",
         "Scopes": [ "admin:web" ]
       }
     ]

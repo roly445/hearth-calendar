@@ -16,7 +16,7 @@ export default defineConfig({
     video: "on"
   },
   webServer: {
-    command: `dotnet run --configuration Release --project src/HearthCalendar.Server/HearthCalendar.Server.csproj --no-launch-profile --urls ${baseURL}`,
+    command: `dotnet run --configuration Release --project src/HearthCalendar.Server/HearthCalendar.Server.csproj --no-restore --no-launch-profile --urls ${baseURL}`,
     url: `${baseURL}/health`,
     reuseExistingServer: false,
     timeout: 120_000,
@@ -25,9 +25,9 @@ export default defineConfig({
       BrowserTests__UseSeedData: "true",
       Auth__AdminUsers__0__Username: "browser-test-admin",
       Auth__AdminUsers__0__DisplayName: "Browser Test Admin",
-      Auth__AdminUsers__0__PasswordHash:
-        "pbkdf2-sha256:210000:NHm8I2Xw70mYYm7b0+2eIA==:89a8ImwEFooR9CZBphgouEZ2ekq7Ys3iBhN2CQwKh4M=",
+      Auth__AdminUsers__0__Password: "browser-test-password",
       Auth__AdminUsers__0__Scopes__0: "admin:web",
+      Auth__PasswordHasher__WorkFactor: "4",
       Database__ConnectionString:
         "Host=127.0.0.1;Port=1;Database=hearth_calendar_browser;Username=browser;Password=browser",
       Database__SchemaName: "hearth_calendar_browser"

@@ -3,6 +3,9 @@ using HearthCalendar.Server.Domain;
 using HearthCalendar.Server.Features.Ui;
 using HearthCalendar.Server.Persistence;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
 
 namespace HearthCalendar.Server.Testing;
@@ -24,6 +27,12 @@ internal static partial class BrowserTestServices
         services.AddSingleton<BrowserTestHearthCalendarStore>();
         services.AddSingleton<IHearthCalendarStore>(provider =>
             provider.GetRequiredService<BrowserTestHearthCalendarStore>());
+        services.RemoveAll<DbContextOptions<HearthCalendarIdentityDbContext>>();
+        services.RemoveAll<IDbContextOptionsConfiguration<HearthCalendarIdentityDbContext>>();
+        services.AddDbContext<HearthCalendarIdentityDbContext>(options =>
+        {
+            options.UseInMemoryDatabase("hearth-calendar-browser-tests");
+        });
 
         return services;
     }

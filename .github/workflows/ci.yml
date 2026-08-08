@@ -29,6 +29,12 @@ jobs:
       - name: Test client assets
         run: npm run test:assets
 
+      - name: Restore
+        run: dotnet restore --disable-parallel
+
+      - name: Build
+        run: dotnet build --configuration Release --no-restore
+
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
@@ -45,12 +51,6 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
-
-      - name: Restore
-        run: dotnet restore --disable-parallel
-
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
 
       - name: Test fast .NET suite
         run: dotnet test --configuration Release --no-build --filter "Category!=Docker"

@@ -16,10 +16,10 @@ using HearthCalendar.Server.Testing;
 using HearthCalendar.Client.Contracts.Ui;
 using HearthCalendar.Server.Domain;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace HearthCalendar.Server;
@@ -31,19 +31,14 @@ public class Program
 
     public static int Main(string[] args)
     {
-        if (AdminPasswordHashCommand.IsCommand(args))
-        {
-            return AdminPasswordHashCommand.Run(args, Console.In, Console.Out, Console.Error);
-        }
-
         var builder = WebApplication.CreateBuilder(args);
         ConfigureLocalDevelopmentConfiguration(builder.Configuration, builder.Environment);
         builder.Host.UseDefaultServiceProvider(ConfigureServiceProviderValidation);
         builder.WebHost.ConfigureKestrel(ConfigureKestrelServerOptions);
         builder.Services.AddHearthCalendarPersistence(builder.Configuration);
-        builder.Services.AddBrowserTestServices(builder.Configuration, builder.Environment);
         ConfigureLocalDevelopmentDataProtection(builder.Services, builder.Environment);
         builder.Services.AddHearthCalendarAuth(builder.Configuration);
+        builder.Services.AddBrowserTestServices(builder.Configuration, builder.Environment);
         builder.Services.AddRazorComponents();
         builder.Services.Configure<HearthCalendarSecurityOptions>(builder.Configuration.GetSection("Security"));
         builder.Services.AddHttpContextAccessor();
@@ -94,6 +89,7 @@ public class Program
 
         app.UseSecurityHeaders();
         app.UseCors(ConfiguredOriginsPolicy);
+        app.UseAdminIdentityBootstrap();
         app.UseAuthentication();
         app.UseBrowserTestAuthentication();
         app.UseAppShellAuthenticationGate();
@@ -262,11 +258,11 @@ internal static class AppShellAuthenticationGateMiddleware
 
             if (context.User.Identity?.IsAuthenticated == true)
             {
-                await context.ForbidAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+                await context.ForbidAsync(IdentityConstants.ApplicationScheme);
                 return;
             }
 
-            await context.ChallengeAsync(CookieAuthenticationDefaults.AuthenticationScheme);
+            await context.ChallengeAsync(IdentityConstants.ApplicationScheme);
         });
     }
 
