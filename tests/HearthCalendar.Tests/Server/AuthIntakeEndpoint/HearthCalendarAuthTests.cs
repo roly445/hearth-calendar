@@ -4,6 +4,7 @@ using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -28,10 +29,13 @@ public sealed class HearthCalendarAuthTests : AuthIntakeEndpointTestBase
             .Value;
         var adminPolicy = authorizationOptions.GetPolicy(HearthCalendarAuth.AdminPolicy);
         var claimRequirement = Assert.IsType<ClaimsAuthorizationRequirement>(
-            Assert.Single(adminPolicy!.Requirements.OfType<ClaimsAuthorizationRequirement>()));
+            adminPolicy!.Requirements.OfType<ClaimsAuthorizationRequirement>().Single());
+        var roleRequirement = Assert.IsType<RolesAuthorizationRequirement>(
+            adminPolicy.Requirements.OfType<RolesAuthorizationRequirement>().Single());
 
         Assert.Equal(HearthCalendarAuth.ScopeClaim, claimRequirement.ClaimType);
         Assert.Equal([HearthCalendarAuth.AdminWebScope], claimRequirement.AllowedValues);
+        Assert.Equal([HearthCalendarAuth.AdminRole], roleRequirement.AllowedRoles);
     }
 
     [Fact]
@@ -53,13 +57,47 @@ public sealed class HearthCalendarAuthTests : AuthIntakeEndpointTestBase
     }
 
     [Fact]
-    public void Admin_password_hasher_matches_only_original_password()
+    public void BCrypt_password_hasher_matches_only_original_password()
     {
-        var hash = HearthCalendarAdminPasswordHasher.Hash(AdminPassword);
+        var hasher = new BCryptIdentityPasswordHasher(
+            Microsoft.Extensions.Options.Options.Create(new BCryptIdentityPasswordHasherOptions()));
+        var user = new HearthCalendarUser { UserName = AdminUsername };
 
-        Assert.True(HearthCalendarAdminPasswordHasher.Matches(AdminPassword, hash));
-        Assert.False(HearthCalendarAdminPasswordHasher.Matches("wrong-password", hash));
-        Assert.False(HearthCalendarAdminPasswordHasher.Matches(AdminPassword, "not-a-valid-hash"));
+        var hash = hasher.HashPassword(user, AdminPassword);
+
+        Assert.StartsWith("$2", hash, StringComparison.Ordinal);
+        Assert.Equal(PasswordVerificationResult.Success, hasher.VerifyHashedPassword(user, hash, AdminPassword));
+        Assert.Equal(PasswordVerificationResult.Failed, hasher.VerifyHashedPassword(user, hash, "wrong-password"));
+        Assert.Equal(PasswordVerificationResult.Failed, hasher.VerifyHashedPassword(user, "not-a-valid-hash", AdminPassword));
         Assert.DoesNotContain(AdminPassword, hash, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Bootstrap_admin_is_stored_as_identity_user_with_bcrypt_password()
+    {
+        var store = new RecordingHearthCalendarStore();
+        await using var factory = CreateFactory(store);
+        using var client = factory.CreateClient();
+
+        _ = await client.GetAsync("/health");
+
+        using var scope = factory.Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<UserManager<HearthCalendarUser>>();
+        var admin = await users.FindByNameAsync(AdminUsername);
+
+        await Verifier.Verify(new
+        {
+            HasAdmin = admin is not null,
+            admin?.UserName,
+            admin?.DisplayName,
+            PasswordHashFormat = admin?.PasswordHash?[..2],
+            IsAdminRole = admin is not null && await users.IsInRoleAsync(admin, HearthCalendarAuth.AdminRole),
+            HasAdminScope = admin is not null && (await users.GetClaimsAsync(admin))
+                .Any(claim => claim.Type == HearthCalendarAuth.ScopeClaim && claim.Value == HearthCalendarAuth.AdminWebScope),
+            PasswordVerifies = admin is not null &&
+                await users.CheckPasswordAsync(admin, AdminPassword),
+            WrongPasswordVerifies = admin is not null &&
+                await users.CheckPasswordAsync(admin, "wrong-password")
+        });
     }
 }

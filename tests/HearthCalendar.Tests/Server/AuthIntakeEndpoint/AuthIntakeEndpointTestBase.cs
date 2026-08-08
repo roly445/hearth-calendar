@@ -5,10 +5,13 @@ using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Intake;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Server.Domain;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -27,6 +30,7 @@ public abstract class AuthIntakeEndpointTestBase
         new WebApplicationFactory<HearthCalendar.Server.Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseEnvironment("Test");
                 builder.ConfigureAppConfiguration((_, configuration) =>
                 {
                     configuration.AddInMemoryCollection(new Dictionary<string, string?>
@@ -35,7 +39,7 @@ public abstract class AuthIntakeEndpointTestBase
                         ["Database:SchemaName"] = "hearth_calendar_test",
                         ["Auth:AdminUsers:0:Username"] = AdminUsername,
                         ["Auth:AdminUsers:0:DisplayName"] = "Calendar Admin",
-                        ["Auth:AdminUsers:0:PasswordHash"] = HearthCalendarAdminPasswordHasher.Hash(AdminPassword),
+                        ["Auth:AdminUsers:0:Password"] = AdminPassword,
                         ["Auth:AdminUsers:0:Scopes:0"] = HearthCalendarAuth.AdminWebScope,
                         ["Auth:ClientTokens:0:Name"] = "home-assistant",
                         ["Auth:ClientTokens:0:SecretHash"] = HearthCalendarSecretHasher.Hash(WriteToken),
@@ -48,6 +52,13 @@ public abstract class AuthIntakeEndpointTestBase
                 });
                 builder.ConfigureTestServices(services =>
                 {
+                    var identityDatabaseName = $"hearth-calendar-auth-{Guid.NewGuid():N}";
+                    services.RemoveAll<DbContextOptions<HearthCalendarIdentityDbContext>>();
+                    services.RemoveAll<IDbContextOptionsConfiguration<HearthCalendarIdentityDbContext>>();
+                    services.AddDbContext<HearthCalendarIdentityDbContext>(options =>
+                    {
+                        options.UseInMemoryDatabase(identityDatabaseName);
+                    });
                     services.RemoveAll<IHearthCalendarStore>();
                     services.RemoveAll<IHearthCalendarCredentialStore>();
                     services.AddSingleton<IHearthCalendarStore>(store);

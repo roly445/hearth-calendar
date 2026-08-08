@@ -7,7 +7,7 @@ The goal is to keep the app secure by default without overbuilding a full identi
 ## Principles
 
 - Human admin access, machine write access, and read-only feed access are separate.
-- PostgreSQL, through Marten, stores credential metadata and hashed secrets.
+- PostgreSQL stores credential metadata and hashed secrets. ASP.NET Core Identity owns human admin users; Marten owns app, feed, and CalDAV credential documents.
 - Raw secrets and tokens are shown once at creation time and are never stored.
 - Endpoints require authorization by default unless explicitly marked anonymous.
 - Every token should be scoped, revocable, and attributable to a client.
@@ -33,12 +33,13 @@ flowchart LR
 
 ### Human Admin Auth
 
-Human users access the web UI with cookie-based authentication.
+Human users access the web UI with ASP.NET Core Identity cookie authentication.
 
 Initial approach:
 
-- one or more admin users supplied through configuration
-- passwords stored as PBKDF2-SHA256 hashes
+- one or more bootstrap admin users supplied through configuration
+- Identity stores human admin users in PostgreSQL
+- Identity password hashing is supplied by a BCrypt `IPasswordHasher<HearthCalendarUser>` implementation
 - cookie sessions for the review/admin UI
 - server-rendered login page at `/login` so unauthenticated users do not boot the WASM client before authentication
 - server-side app-shell authentication gate for page navigations into the admin workspace
@@ -46,13 +47,12 @@ Initial approach:
 
 Potential later upgrade:
 
-- admin users stored in Marten with lifecycle metadata
 - one-time first-run setup guarded by a bootstrap secret and disabled once an admin exists
 - external identity provider through OpenID Connect
 - Microsoft, Google, or another family-managed provider
 - richer roles if the app grows beyond simple admin usage
 
-The initial implementation should avoid full ASP.NET Identity unless the app needs registration, password reset, external login management, or a richer account lifecycle.
+The implementation uses ASP.NET Core Identity without Entra or `Microsoft.Identity.Web`. Registration, password reset, external login management, and public account creation remain out of scope.
 
 ### Machine Write Auth
 
@@ -150,44 +150,24 @@ BluQube commands and queries used by the Blazor WebAssembly UI should also requi
 
 ## First Admin Bootstrap
 
-V1 bootstraps the first human admin outside the app through configuration. The deployment provides `Auth:AdminUsers` via environment variables, user secrets, or a host secret store. The app only receives a PBKDF2 password hash.
+V1 bootstraps the first human admin outside the app through configuration. The deployment provides `Auth:AdminUsers` via environment variables, user secrets, or a host secret store. The app receives the bootstrap password at startup, creates or updates a real ASP.NET Core Identity user, and stores the password using BCrypt.
 
 Environment variable shape:
 
 ```text
 Auth__AdminUsers__0__Username=admin-user
 Auth__AdminUsers__0__DisplayName=Calendar Admin
-Auth__AdminUsers__0__PasswordHash=pbkdf2-sha256:<iterations>:<salt>:<hash>
+Auth__AdminUsers__0__Password=<secret>
 Auth__AdminUsers__0__Scopes__0=admin:web
 ```
 
-Generate the hash with the server command:
-
-```powershell
-$password = Read-Host -Prompt "Admin password" -MaskInput
-$password | dotnet run --no-launch-profile --project src/HearthCalendar.Server -- admin-password-hash --password-stdin
-Remove-Variable password
-```
-
-The repo must not contain a real admin username, raw password, deployment hash, or default admin credential.
+The repo must not contain a real admin username, raw password, deployment hash, or default admin credential. Keep bootstrap passwords in a secret store, process environment, or ignored local settings only.
 
 ## Credential Documents
 
 ### Admin User
 
-```csharp
-public sealed record AdminUserDocument
-{
-    public required string Id { get; init; }
-    public required string DisplayName { get; init; }
-    public required string Username { get; init; }
-    public required string PasswordHash { get; init; }
-    public required IReadOnlyList<string> Scopes { get; init; }
-    public required Instant CreatedAt { get; init; }
-    public Instant? LastLoginAt { get; init; }
-    public Instant? DisabledAt { get; init; }
-}
-```
+Human admin users are ASP.NET Core Identity users. Identity owns password hashes, security stamps, lockout metadata, roles, and user claims. The app adds the `Admin` role and `admin:web` scope claim during bootstrap.
 
 ### Client Credential
 
@@ -332,7 +312,7 @@ Configuration shape:
       {
         "Username": "admin",
         "DisplayName": "Calendar Admin",
-        "PasswordHash": "pbkdf2-sha256:<iterations>:<salt>:<hash>",
+        "Password": "<secret-from-secret-store>",
         "Scopes": [ "admin:web" ]
       }
     ]

@@ -33,7 +33,7 @@ Copy-Item .\src\HearthCalendar.Server\appsettings.Local.example.json .\src\Heart
 dotnet run --project .\src\HearthCalendar.Server\HearthCalendar.Server.csproj --launch-profile https
 ```
 
-The compose file starts PostgreSQL on `localhost:5432` with database `hearth_calendar_dev`, username `postgres`, and password `postgres`. Edit `src/HearthCalendar.Server/appsettings.Local.json` with your local admin password hash before signing in. The file is ignored by Git. The HTTPS profile serves `https://hearth-calendar.dev.localhost:7129`. Add the host to the Windows hosts file if it does not resolve locally.
+The compose file starts PostgreSQL on `localhost:5432` with database `hearth_calendar_dev`, username `postgres`, and password `postgres`. Edit `src/HearthCalendar.Server/appsettings.Local.json` with your local bootstrap admin password before signing in; ASP.NET Core Identity stores it as a BCrypt hash in PostgreSQL. The file is ignored by Git. The HTTPS profile serves `https://hearth-calendar.dev.localhost:7129`. Add the host to the Windows hosts file if it does not resolve locally.
 
 ## VS Code Debugging
 

@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using HearthCalendar.Server.Auth;
 using HearthCalendar.Server.Persistence;
 using HearthCalendar.Server.Domain;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
@@ -22,6 +23,7 @@ public abstract class FeedEndpointTestBase
         new WebApplicationFactory<HearthCalendar.Server.Program>()
             .WithWebHostBuilder(builder =>
             {
+                builder.UseEnvironment("Test");
                 builder.ConfigureAppConfiguration((_, configuration) =>
                 {
                     configuration.AddInMemoryCollection(new Dictionary<string, string?>
