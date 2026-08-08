@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
+using System.Text.Json.Nodes;
 
 namespace HearthCalendar.Server.Testing;
 
@@ -27,6 +28,9 @@ internal static partial class BrowserTestServices
         services.AddSingleton<BrowserTestHearthCalendarStore>();
         services.AddSingleton<IHearthCalendarStore>(provider =>
             provider.GetRequiredService<BrowserTestHearthCalendarStore>());
+        services.AddSingleton<BrowserTestHouseholdMetadataStore>();
+        services.AddSingleton<IHearthCalendarHouseholdMetadataStore>(provider =>
+            provider.GetRequiredService<BrowserTestHouseholdMetadataStore>());
         services.RemoveAll<DbContextOptions<HearthCalendarIdentityDbContext>>();
         services.RemoveAll<IDbContextOptionsConfiguration<HearthCalendarIdentityDbContext>>();
         services.AddDbContext<HearthCalendarIdentityDbContext>(options =>
@@ -60,6 +64,16 @@ internal static partial class BrowserTestServices
         var contentTypes = new FileExtensionContentTypeProvider();
         contentTypes.Mappings[".dat"] = "application/octet-stream";
         contentTypes.Mappings[".pdb"] = "application/octet-stream";
+
+        foreach (var packageRoot in BrowserTestPackageStaticFileRoots(environment))
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(packageRoot.PhysicalPath),
+                RequestPath = packageRoot.RequestPath,
+                ContentTypeProvider = contentTypes
+            });
+        }
 
         return app.UseStaticFiles(new StaticFileOptions
         {
@@ -132,6 +146,11 @@ internal static partial class BrowserTestServices
             environment.ContentRootPath,
             "..",
             "HearthCalendar.Client"));
+        foreach (var runtimeRoot in BrowserTestRuntimeManifestRoots(clientRoot))
+        {
+            yield return runtimeRoot;
+        }
+
         var sourceWebRoot = Path.Combine(clientRoot, "wwwroot");
         if (Directory.Exists(sourceWebRoot))
         {
@@ -170,6 +189,108 @@ internal static partial class BrowserTestServices
         }
     }
 
+    private static IEnumerable<string> BrowserTestRuntimeManifestRoots(string clientRoot)
+    {
+        var manifestPath = BrowserTestRuntimeManifestPath(clientRoot);
+        if (!File.Exists(manifestPath))
+        {
+            yield break;
+        }
+
+        var contentRoots = JsonNode.Parse(File.ReadAllText(manifestPath))?["ContentRoots"]?.AsArray();
+        if (contentRoots is null)
+        {
+            yield break;
+        }
+
+        foreach (var contentRoot in contentRoots)
+        {
+            var root = contentRoot?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(root) && Directory.Exists(root))
+            {
+                yield return root;
+            }
+        }
+    }
+
+    private static IEnumerable<BrowserTestPackageStaticFileRoot> BrowserTestPackageStaticFileRoots(
+        IHostEnvironment environment)
+    {
+        var clientRoot = Path.GetFullPath(Path.Combine(
+            environment.ContentRootPath,
+            "..",
+            "HearthCalendar.Client"));
+        var manifestPath = BrowserTestRuntimeManifestPath(clientRoot);
+        if (!File.Exists(manifestPath))
+        {
+            yield break;
+        }
+
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath));
+        var contentRoots = manifest?["ContentRoots"]?.AsArray();
+        var packages = manifest?["Root"]?["Children"]?["_content"]?["Children"]?.AsObject();
+        if (contentRoots is null || packages is null)
+        {
+            yield break;
+        }
+
+        foreach (var package in packages)
+        {
+            var contentRootIndex = FindContentRootIndex(package.Value);
+            if (contentRootIndex is null || contentRootIndex.Value >= contentRoots.Count)
+            {
+                continue;
+            }
+
+            var physicalPath = contentRoots[contentRootIndex.Value]?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(physicalPath) && Directory.Exists(physicalPath))
+            {
+                yield return new BrowserTestPackageStaticFileRoot(
+                    $"/_content/{package.Key}",
+                    physicalPath);
+            }
+        }
+    }
+
+    private static int? FindContentRootIndex(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return null;
+        }
+
+        var assetIndex = node["Asset"]?["ContentRootIndex"]?.GetValue<int>();
+        if (assetIndex is not null)
+        {
+            return assetIndex;
+        }
+
+        var children = node["Children"]?.AsObject();
+        if (children is null)
+        {
+            return null;
+        }
+
+        foreach (var child in children)
+        {
+            var childIndex = FindContentRootIndex(child.Value);
+            if (childIndex is not null)
+            {
+                return childIndex;
+            }
+        }
+
+        return null;
+    }
+
+    private static string BrowserTestRuntimeManifestPath(string clientRoot) =>
+        Path.Combine(
+            clientRoot,
+            "bin",
+            CurrentBuildConfiguration(),
+            "net10.0",
+            "HearthCalendar.Client.staticwebassets.runtime.json");
+
     private static string CurrentBuildConfiguration() =>
         AppContext.BaseDirectory.Contains(
             $"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}",
@@ -177,6 +298,84 @@ internal static partial class BrowserTestServices
             ? "Release"
             : "Debug";
 
+    private sealed record BrowserTestPackageStaticFileRoot(string RequestPath, string PhysicalPath);
+
+}
+
+internal sealed class BrowserTestHouseholdMetadataStore : IHearthCalendarHouseholdMetadataStore
+{
+    private readonly List<HouseholdMemberDocument> members = [];
+    private readonly List<HouseholdRelationshipDocument> relationships = [];
+
+    public BrowserTestHouseholdMetadataStore()
+    {
+        var now = new DateTimeOffset(2026, 8, 12, 12, 0, 0, TimeSpan.Zero);
+        foreach (var member in DefaultHouseholdMetadata.Instance.Members)
+        {
+            members.Add(new HouseholdMemberDocument
+            {
+                Id = member.Id.Value,
+                DisplayName = member.DisplayName,
+                Kind = member.Kind.ToString(),
+                CreatedAt = now
+            });
+        }
+
+        foreach (var relationship in DefaultHouseholdMetadata.Instance.Relationships)
+        {
+            relationships.Add(new HouseholdRelationshipDocument
+            {
+                Id = Guid.NewGuid(),
+                FromMemberId = relationship.From.Value,
+                ToMemberId = relationship.To.Value,
+                Kind = relationship.Kind.ToString(),
+                CreatedAt = now
+            });
+        }
+    }
+
+    public Task<HouseholdMetadataInventory> QueryAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(new HouseholdMetadataInventory(
+            members.OrderBy(member => member.Id).ToArray(),
+            relationships
+                .OrderBy(relationship => relationship.FromMemberId)
+                .ThenBy(relationship => relationship.ToMemberId)
+                .ThenBy(relationship => relationship.Kind)
+                .ToArray()));
+
+    public Task<HouseholdMemberDocument?> LoadMemberAsync(string id, CancellationToken cancellationToken) =>
+        Task.FromResult(members.SingleOrDefault(member =>
+            string.Equals(member.Id, id, StringComparison.OrdinalIgnoreCase)));
+
+    public Task StoreMemberAsync(
+        HouseholdMemberDocument member,
+        AuditEntry audit,
+        CancellationToken cancellationToken)
+    {
+        members.RemoveAll(candidate => string.Equals(candidate.Id, member.Id, StringComparison.OrdinalIgnoreCase));
+        members.Add(member);
+
+        return Task.CompletedTask;
+    }
+
+    public Task<HouseholdRelationshipDocument?> LoadRelationshipAsync(Guid id, CancellationToken cancellationToken) =>
+        Task.FromResult(relationships.SingleOrDefault(relationship => relationship.Id == id));
+
+    public Task StoreRelationshipAsync(
+        HouseholdRelationshipDocument relationship,
+        AuditEntry audit,
+        CancellationToken cancellationToken)
+    {
+        relationships.RemoveAll(candidate => candidate.Id == relationship.Id);
+        relationships.Add(relationship);
+
+        return Task.CompletedTask;
+    }
+
+    public Task<EnsureDefaultHouseholdMetadataResultDocument> EnsureDefaultsAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(new EnsureDefaultHouseholdMetadataResultDocument(0, 0));
 }
 
 internal sealed class BrowserTestHearthCalendarStore : IHearthCalendarStore

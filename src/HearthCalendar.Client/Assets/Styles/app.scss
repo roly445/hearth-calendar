@@ -31,6 +31,7 @@ body {
 
 button,
 input,
+select,
 textarea {
     font: inherit;
 }
@@ -60,6 +61,7 @@ button:disabled {
 
 button:focus,
 input:focus,
+select:focus,
 textarea:focus,
 a:focus {
     outline: 3px solid color-mix(in srgb, var(--focus) 28%, transparent);
@@ -282,9 +284,21 @@ h3 {
     gap: 1.1rem;
 }
 
+.household-workspace {
+    display: grid;
+    gap: 1.1rem;
+}
+
 .credential-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(15rem, 1fr));
+    gap: 1.1rem;
+    align-items: start;
+}
+
+.household-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(18rem, 1fr));
     gap: 1.1rem;
     align-items: start;
 }
@@ -321,6 +335,7 @@ label {
 }
 
 input,
+select,
 textarea {
     width: 100%;
     border: 1px solid var(--line);
@@ -410,6 +425,12 @@ textarea {
     gap: 0.5rem;
 }
 
+.inline-form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
 .generated-secret-panel {
     display: grid;
     gap: 0.6rem;
@@ -437,7 +458,23 @@ textarea {
     gap: 0.75rem;
 }
 
+.metadata-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
 .credential-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 0.85rem;
+    background: var(--surface-raised);
+}
+
+.metadata-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.75rem;
@@ -454,7 +491,20 @@ textarea {
     font-size: 0.86rem;
 }
 
+.metadata-row p {
+    margin-bottom: 0.25rem;
+    color: var(--muted);
+    font-size: 0.86rem;
+}
+
 .credential-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+.metadata-actions {
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
@@ -541,7 +591,9 @@ time {
     .page,
     .dashboard-grid,
     .credential-grid,
+    .household-grid,
     .credential-row,
+    .metadata-row,
     .field-row {
         grid-template-columns: 1fr;
     }
@@ -592,17 +644,20 @@ time {
 
     .header-actions,
     .command-row,
+    .inline-form-actions,
     .credential-actions {
         align-items: stretch;
     }
 
     .header-actions,
-    .credential-actions {
+    .credential-actions,
+    .metadata-actions {
         width: 100%;
     }
 
     .header-actions button,
-    .credential-actions button {
+    .credential-actions button,
+    .metadata-actions button {
         flex: 1 1 8rem;
     }
 }
