@@ -1,0 +1,137 @@
+@page "/household"
+
+<main class="workspace household-workspace">
+    <header class="workspace-header">
+        <div>
+            <p class="eyebrow">Admin access</p>
+            <h1>Household Metadata</h1>
+        </div>
+        <div class="header-actions">
+            <button class="refresh-button" title="Refresh" @onclick="RefreshAsync" disabled="@isLoading">Refresh</button>
+            <button class="refresh-button" title="Sign out" @onclick="SignOutAsync">Sign out</button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(message))
+    {
+        <p class="notice">@message</p>
+    }
+
+    <div class="household-grid">
+        <section class="panel">
+            <h2>Member</h2>
+            <div class="field-stack">
+                <label>
+                    Member id
+                    <input value="@model.MemberId" @oninput="SetMemberId" maxlength="80" autocomplete="off" />
+                </label>
+                <label>
+                    Display label
+                    <input value="@model.DisplayName" @oninput="SetDisplayName" maxlength="80" autocomplete="off" />
+                </label>
+                <label>
+                    Kind
+                    <select aria-label="Member kind" value="@model.MemberKind" @onchange="SetMemberKind">
+                        @foreach (var kind in MemberKindOptions)
+                        {
+                            <option value="@kind">@kind</option>
+                        }
+                    </select>
+                </label>
+                <div class="inline-form-actions">
+                    <button class="primary-action" type="button" @onclick="CreateMemberAsync" disabled="@IsMemberActionDisabled">Add member</button>
+                    <button type="button" @onclick="UpdateMemberAsync" disabled="@IsMemberActionDisabled">Update member</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <h2>Relationship</h2>
+            <div class="field-stack">
+                <label>
+                    From
+                    <select aria-label="From member" value="@model.FromMemberId" @onchange="SetFromMemberId">
+                        <option value="">Choose member</option>
+                        @foreach (var member in ActiveMembers)
+                        {
+                            <option value="@member.Id">@member.DisplayName</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    To
+                    <select aria-label="To member" value="@model.ToMemberId" @onchange="SetToMemberId">
+                        <option value="">Choose member</option>
+                        @foreach (var member in ActiveMembers)
+                        {
+                            <option value="@member.Id">@member.DisplayName</option>
+                        }
+                    </select>
+                </label>
+                <label>
+                    Kind
+                    <select aria-label="Relationship kind" value="@model.RelationshipKind" @onchange="SetRelationshipKind">
+                        @foreach (var kind in RelationshipKindOptions)
+                        {
+                            <option value="@kind">@kind</option>
+                        }
+                    </select>
+                </label>
+                <button class="primary-action" type="button" @onclick="CreateRelationshipAsync" disabled="@IsRelationshipActionDisabled">Add relationship</button>
+            </div>
+        </section>
+    </div>
+
+    <section class="panel metadata-list-panel">
+        <h2>Members</h2>
+        @if (members.Count == 0)
+        {
+            <p class="empty-state">No household members.</p>
+        }
+        else
+        {
+            <div class="metadata-list">
+                @foreach (var member in members)
+                {
+                    <article class="metadata-row">
+                        <div>
+                            <h3>@member.DisplayName</h3>
+                            <p>@member.Id - @member.Kind - @StatusLabel(member.IsActive)</p>
+                            <p>Created @FormatDate(member.CreatedAt)@UpdatedLabel(member)</p>
+                        </div>
+                        <div class="metadata-actions">
+                            <button type="button" @onclick="() => SelectMemberForEdit(member)" disabled="@isSubmitting">Edit</button>
+                            <button type="button" @onclick="() => ArchiveMemberAsync(member.Id)" disabled="@IsArchiveMemberDisabled(member)">Archive</button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+
+    <section class="panel metadata-list-panel">
+        <h2>Relationships</h2>
+        @if (relationships.Count == 0)
+        {
+            <p class="empty-state">No household relationships.</p>
+        }
+        else
+        {
+            <div class="metadata-list">
+                @foreach (var relationship in relationships)
+                {
+                    <article class="metadata-row">
+                        <div>
+                            <h3>@MemberLabel(relationship.FromMemberId) to @MemberLabel(relationship.ToMemberId)</h3>
+                            <p>@relationship.Kind - @StatusLabel(relationship.IsActive)</p>
+                            <p>Created @FormatDate(relationship.CreatedAt)@ArchivedLabel(relationship.ArchivedAt)</p>
+                        </div>
+                        <div class="metadata-actions">
+                            <button type="button" @onclick="() => ArchiveRelationshipAsync(relationship.Id)" disabled="@IsArchiveRelationshipDisabled(relationship)">Archive</button>
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </section>
+</main>
