@@ -225,7 +225,7 @@ Acceptance criteria:
 - Domain tests do not require PostgreSQL.
 - Persistence tests use real Marten/PostgreSQL behaviour.
 - Auth tests prove feed tokens cannot write and write tokens cannot administer.
-- Human admin auth uses ASP.NET Core Identity with a BCrypt password hasher rather than app-owned password verification.
+- Human admin auth uses ASP.NET Core Identity with a package-backed BCrypt password hasher rather than app-owned password verification.
 
 ## Frontend
 

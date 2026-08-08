@@ -39,7 +39,7 @@ Initial approach:
 
 - one or more bootstrap admin users supplied through configuration
 - Identity stores human admin users in PostgreSQL
-- Identity password hashing is supplied by a BCrypt `IPasswordHasher<HearthCalendarUser>` implementation
+- Identity password hashing is supplied by the `ScottBrady91.AspNetCore.Identity.BCryptPasswordHasher` `IPasswordHasher<HearthCalendarUser>` package
 - cookie sessions for the review/admin UI
 - server-rendered login page at `/login` so unauthenticated users do not boot the WASM client before authentication
 - server-side app-shell authentication gate for page navigations into the admin workspace

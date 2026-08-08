@@ -3,7 +3,6 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="BCrypt.Net-Next" Version="4.2.0" />
     <PackageVersion Include="BluQube" Version="1.3.1" />
     <PackageVersion Include="FluentValidation" Version="12.1.0" />
     <PackageVersion Include="Marten" Version="9.21.0" />
@@ -17,6 +16,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.7" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageVersion Include="ScottBrady91.AspNetCore.Identity.BCryptPasswordHasher" Version="1.3.0" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageVersion Include="Verify.Xunit" Version="31.12.5" />

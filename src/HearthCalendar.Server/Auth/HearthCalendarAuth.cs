@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using ScottBrady91.AspNetCore.Identity;
 
 namespace HearthCalendar.Server.Auth;
 
@@ -41,7 +42,7 @@ public static class HearthCalendarAuth
         IConfiguration configuration)
     {
         services.Configure<HearthCalendarAuthOptions>(configuration.GetSection("Auth"));
-        services.Configure<BCryptIdentityPasswordHasherOptions>(configuration.GetSection("Auth:PasswordHasher"));
+        services.Configure<BCryptPasswordHasherOptions>(configuration.GetSection("Auth:PasswordHasher"));
         services.AddDbContext<HearthCalendarIdentityDbContext>((serviceProvider, options) =>
         {
             var databaseOptions = serviceProvider
@@ -64,7 +65,7 @@ public static class HearthCalendarAuth
             .AddRoles<IdentityRole<Guid>>()
             .AddEntityFrameworkStores<HearthCalendarIdentityDbContext>()
             .AddSignInManager();
-        services.AddScoped<IPasswordHasher<HearthCalendarUser>, BCryptIdentityPasswordHasher>();
+        services.AddScoped<IPasswordHasher<HearthCalendarUser>, BCryptPasswordHasher<HearthCalendarUser>>();
         services.AddSingleton<AdminIdentityBootstrapState>();
         services.AddHostedService<AdminIdentityBootstrapper>();
         services
