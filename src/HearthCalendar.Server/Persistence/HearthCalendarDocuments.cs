@@ -188,6 +188,36 @@ public sealed record CalDavCredentialDocument
     public DateTimeOffset? RevokedAt { get; init; }
 }
 
+public sealed record HouseholdMemberDocument
+{
+    public required string Id { get; init; }
+
+    public required string DisplayName { get; init; }
+
+    public required string Kind { get; init; }
+
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset? UpdatedAt { get; init; }
+
+    public DateTimeOffset? ArchivedAt { get; init; }
+}
+
+public sealed record HouseholdRelationshipDocument
+{
+    public required Guid Id { get; init; }
+
+    public required string FromMemberId { get; init; }
+
+    public required string ToMemberId { get; init; }
+
+    public required string Kind { get; init; }
+
+    public required DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset? ArchivedAt { get; init; }
+}
+
 public sealed record CalDavObjectDocument
 {
     public required string Id { get; init; }

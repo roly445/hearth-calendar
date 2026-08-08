@@ -1,0 +1,28 @@
+{
+  Members: [
+    {
+      Id: adult-a,
+      DisplayName: Adult A,
+      Kind: Adult,
+      IsActive: true,
+      CreatedAt: DateTimeOffset_1
+    },
+    {
+      Id: child-a,
+      DisplayName: Child A,
+      Kind: Child,
+      IsActive: false,
+      CreatedAt: DateTimeOffset_2,
+      ArchivedAt: DateTimeOffset_3
+    }
+  ],
+  Relationships: [
+    {
+      FromMemberId: adult-a,
+      ToMemberId: child-a,
+      Kind: ParentOrGuardianOf,
+      IsActive: true,
+      CreatedAt: DateTimeOffset_4
+    }
+  ]
+}

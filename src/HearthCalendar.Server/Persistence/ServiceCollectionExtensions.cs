@@ -37,6 +37,8 @@ public static class ServiceCollectionExtensions
             storeOptions.Schema.For<ClientCredentialDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<FeedTokenDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<CalDavCredentialDocument>().Identity(document => document.Id);
+            storeOptions.Schema.For<HouseholdMemberDocument>().Identity(document => document.Id);
+            storeOptions.Schema.For<HouseholdRelationshipDocument>().Identity(document => document.Id);
             storeOptions.Schema.For<CalDavObjectDocument>()
                 .Identity(document => document.Id)
                 .UseOptimisticConcurrency(true);
@@ -46,6 +48,7 @@ public static class ServiceCollectionExtensions
 
         services.AddScoped<IHearthCalendarStore, MartenHearthCalendarStore>();
         services.AddScoped<IHearthCalendarCredentialStore, MartenHearthCalendarCredentialStore>();
+        services.AddScoped<IHearthCalendarHouseholdMetadataStore, MartenHearthCalendarHouseholdMetadataStore>();
 
         return services;
     }

@@ -1,0 +1,92 @@
+{
+  First: {
+    MembersCreated: 3,
+    RelationshipsCreated: 6
+  },
+  Second: {},
+  Members: [
+    {
+      Id: adult-a,
+      DisplayName: Adult A,
+      Kind: Adult,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasUpdatedAt: false,
+      HasArchivedAt: false
+    },
+    {
+      Id: adult-b,
+      DisplayName: Adult B,
+      Kind: Adult,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasUpdatedAt: false,
+      HasArchivedAt: false
+    },
+    {
+      Id: child,
+      DisplayName: Child,
+      Kind: Child,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasUpdatedAt: false,
+      HasArchivedAt: false
+    }
+  ],
+  Relationships: [
+    {
+      HasId: true,
+      FromMemberId: adult-a,
+      ToMemberId: adult-b,
+      Kind: PartnerOf,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasArchivedAt: false
+    },
+    {
+      HasId: true,
+      FromMemberId: adult-b,
+      ToMemberId: adult-a,
+      Kind: PartnerOf,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasArchivedAt: false
+    },
+    {
+      HasId: true,
+      FromMemberId: adult-a,
+      ToMemberId: child,
+      Kind: ParentOrGuardianOf,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasArchivedAt: false
+    },
+    {
+      HasId: true,
+      FromMemberId: adult-b,
+      ToMemberId: child,
+      Kind: ParentOrGuardianOf,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasArchivedAt: false
+    },
+    {
+      HasId: true,
+      FromMemberId: adult-a,
+      ToMemberId: child,
+      Kind: ResponsibleFor,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasArchivedAt: false
+    },
+    {
+      HasId: true,
+      FromMemberId: adult-b,
+      ToMemberId: child,
+      Kind: ResponsibleFor,
+      IsActive: true,
+      HasCreatedAt: true,
+      HasArchivedAt: false
+    }
+  ]
+}

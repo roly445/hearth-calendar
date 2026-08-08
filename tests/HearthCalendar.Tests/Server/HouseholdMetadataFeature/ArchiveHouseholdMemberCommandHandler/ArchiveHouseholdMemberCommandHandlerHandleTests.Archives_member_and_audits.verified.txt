@@ -1,0 +1,30 @@
+{
+  Status: Succeeded,
+  Data: {
+    Id: child-a,
+    DisplayName: Child A,
+    Kind: Child,
+    IsActive: false,
+    Message: Household member archived.
+  },
+  Member: {
+    Id: child-a,
+    DisplayName: Child A,
+    Kind: Child,
+    IsActive: false,
+    HasCreatedAt: true,
+    HasUpdatedAt: true,
+    HasArchivedAt: true
+  },
+  Audit: {
+    Action: HouseholdMemberArchived,
+    Actor: system,
+    HasOccurredAt: true,
+    Summary: Household metadata action HouseholdMemberArchived.,
+    Metadata: {
+      active: False,
+      kind: Child,
+      memberId: child-a
+    }
+  }
+}

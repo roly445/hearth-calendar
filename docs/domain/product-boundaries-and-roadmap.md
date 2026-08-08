@@ -93,6 +93,8 @@ Current implementation uses generic compatibility defaults:
 
 These defaults should be replaced by persisted household metadata and admin UI in later slices.
 
+The persistence/API slice stores household members and relationships in Marten and exposes admin-only BluQube commands/queries for management. Runtime review and exported calendar views continue to use the compatibility bridge until the persisted resolver slice is implemented.
+
 ## First Useful Web Screens
 
 Initial UI screens:

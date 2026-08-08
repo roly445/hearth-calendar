@@ -1,0 +1,33 @@
+{
+  Status: Succeeded,
+  Result: {
+    Id: Guid_1,
+    FromMemberId: adult-a,
+    ToMemberId: child-a,
+    Kind: ParentOrGuardianOf,
+    IsActive: false,
+    Message: Household relationship archived.
+  },
+  Relationship: {
+    HasId: true,
+    FromMemberId: adult-a,
+    ToMemberId: child-a,
+    Kind: ParentOrGuardianOf,
+    IsActive: false,
+    HasCreatedAt: true,
+    HasArchivedAt: true
+  },
+  Audit: {
+    Action: HouseholdRelationshipArchived,
+    Actor: system,
+    HasOccurredAt: true,
+    Summary: Household metadata action HouseholdRelationshipArchived.,
+    Metadata: {
+      active: False,
+      fromMemberId: adult-a,
+      kind: ParentOrGuardianOf,
+      relationshipId: Guid_1,
+      toMemberId: child-a
+    }
+  }
+}

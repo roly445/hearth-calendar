@@ -1,0 +1,7 @@
+{
+  Status: Failed,
+  ErrorData: {
+    Code: DUPLICATE_HOUSEHOLD_MEMBER,
+    Message: A household member with that id already exists.
+  }
+}

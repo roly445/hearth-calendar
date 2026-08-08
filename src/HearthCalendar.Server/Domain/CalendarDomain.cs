@@ -301,5 +301,11 @@ public enum AuditAction
     FeedTokenRevoked,
     CalDavCredentialCreated,
     CalDavCredentialRotated,
-    CalDavCredentialRevoked
+    CalDavCredentialRevoked,
+    HouseholdMemberCreated,
+    HouseholdMemberUpdated,
+    HouseholdMemberArchived,
+    HouseholdRelationshipCreated,
+    HouseholdRelationshipArchived,
+    HouseholdDefaultsBootstrapped
 }

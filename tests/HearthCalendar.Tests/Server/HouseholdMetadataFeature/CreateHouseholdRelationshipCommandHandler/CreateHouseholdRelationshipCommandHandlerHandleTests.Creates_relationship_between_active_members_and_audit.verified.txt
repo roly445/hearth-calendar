@@ -1,0 +1,33 @@
+{
+  Status: Succeeded,
+  Result: {
+    HasId: true,
+    FromMemberId: adult-a,
+    ToMemberId: child-a,
+    Kind: ParentOrGuardianOf,
+    IsActive: true,
+    Message: Household relationship created.
+  },
+  Relationship: {
+    HasId: true,
+    FromMemberId: adult-a,
+    ToMemberId: child-a,
+    Kind: ParentOrGuardianOf,
+    IsActive: true,
+    HasCreatedAt: true,
+    HasArchivedAt: false
+  },
+  Audit: {
+    Action: HouseholdRelationshipCreated,
+    Actor: system,
+    HasOccurredAt: true,
+    Summary: Household metadata action HouseholdRelationshipCreated.,
+    Metadata: {
+      active: True,
+      fromMemberId: adult-a,
+      kind: ParentOrGuardianOf,
+      relationshipId: Guid_1,
+      toMemberId: child-a
+    }
+  }
+}
