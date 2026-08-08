@@ -1,0 +1,63 @@
+{
+  Members: [
+    {
+      Id: adult-a,
+      DisplayName: Adult A,
+      Kind: Adult,
+      IsActive: true
+    },
+    {
+      Id: adult-b,
+      DisplayName: Adult B,
+      Kind: Adult,
+      IsActive: true
+    },
+    {
+      Id: child,
+      DisplayName: Child,
+      Kind: Child,
+      IsActive: true
+    }
+  ],
+  Relationships: [
+    {
+      From: adult-a,
+      To: adult-b,
+      Kind: PartnerOf,
+      IsActive: true
+    },
+    {
+      From: adult-b,
+      To: adult-a,
+      Kind: PartnerOf,
+      IsActive: true
+    },
+    {
+      From: adult-a,
+      To: child,
+      Kind: ParentOrGuardianOf,
+      IsActive: true
+    },
+    {
+      From: adult-b,
+      To: child,
+      Kind: ParentOrGuardianOf,
+      IsActive: true
+    },
+    {
+      From: adult-a,
+      To: child,
+      Kind: ResponsibleFor,
+      IsActive: true
+    },
+    {
+      From: adult-b,
+      To: child,
+      Kind: ResponsibleFor,
+      IsActive: true
+    }
+  ],
+  AdultAReference: adult-a,
+  ChildReference: child,
+  ChildResponsibility: true
+}

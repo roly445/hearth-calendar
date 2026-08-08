@@ -8,15 +8,18 @@ public sealed partial class DeterministicEventReviewPipeline
     private readonly DateOnly today;
     private readonly IReadOnlyList<CalendarEvent> existingEvents;
     private readonly IAiReviewProvider aiReviewProvider;
+    private readonly IHouseholdMetadata householdMetadata;
 
     public DeterministicEventReviewPipeline(
         DateOnly today,
         IReadOnlyList<CalendarEvent>? existingEvents = null,
-        IAiReviewProvider? aiReviewProvider = null)
+        IAiReviewProvider? aiReviewProvider = null,
+        IHouseholdMetadata? householdMetadata = null)
     {
         this.today = today;
         this.existingEvents = existingEvents ?? [];
         this.aiReviewProvider = aiReviewProvider ?? NoOpAiReviewProvider.Instance;
+        this.householdMetadata = householdMetadata ?? DefaultHouseholdMetadata.Instance;
     }
 
     public ReviewDecision Review(EventIntent intent)
@@ -214,7 +217,8 @@ public sealed partial class DeterministicEventReviewPipeline
         if (lower.Contains("child", StringComparison.Ordinal))
         {
             var responsibleAdult = FindAdult(lower);
-            if (responsibleAdult is null)
+            var child = householdMetadata.FindDefaultChild();
+            if (responsibleAdult is null || child is null)
             {
                 return null;
             }
@@ -227,7 +231,7 @@ public sealed partial class DeterministicEventReviewPipeline
                 EventCategory.Responsibility,
                 BusyStatus.Busy,
                 [
-                    new Participant(KnownPeople.Child, ParticipationRole.Child, BusyStatus.Busy),
+                    new Participant(child, ParticipationRole.Child, BusyStatus.Busy),
                     new Participant(responsibleAdult, ParticipationRole.ResponsibleAdult, BusyStatus.Busy)
                 ],
                 intent.Source,
@@ -243,7 +247,7 @@ public sealed partial class DeterministicEventReviewPipeline
                 VirtualCalendar.Family,
                 EventCategory.Family,
                 BusyStatus.Busy,
-                KnownPeople.All.Select(person => new Participant(person, ParticipationRole.Attendee, BusyStatus.Busy)).ToArray(),
+                householdMetadata.People.Select(person => new Participant(person, ParticipationRole.Attendee, BusyStatus.Busy)).ToArray(),
                 intent.Source);
         }
 
@@ -254,7 +258,7 @@ public sealed partial class DeterministicEventReviewPipeline
                 CalendarEventId.New(),
                 normalized,
                 time,
-                adult.Id == KnownPeople.AdultA.Id ? VirtualCalendar.AdultA : VirtualCalendar.AdultB,
+                householdMetadata.FindPrimaryCalendarFor(adult) ?? VirtualCalendar.Review,
                 EventCategory.Personal,
                 BusyStatus.Busy,
                 [new Participant(adult, ParticipationRole.Attendee, BusyStatus.Busy)],
@@ -281,17 +285,9 @@ public sealed partial class DeterministicEventReviewPipeline
         return new DateOnly(today.Year, month, day);
     }
 
-    private static Person? FindPerson(string lower) => FindAdult(lower) ?? (lower.Contains("child", StringComparison.Ordinal) ? KnownPeople.Child : null);
+    private Person? FindPerson(string lower) => householdMetadata.FindReferencedPerson(lower);
 
-    private static Person? FindAdult(string lower)
-    {
-        if (lower.Contains("adult a", StringComparison.Ordinal))
-        {
-            return KnownPeople.AdultA;
-        }
-
-        return lower.Contains("adult b", StringComparison.Ordinal) ? KnownPeople.AdultB : null;
-    }
+    private Person? FindAdult(string lower) => householdMetadata.FindReferencedAdult(lower);
 
     private static ReviewDecision Decide(
         EventIntent intent,
@@ -339,7 +335,7 @@ public sealed partial class DeterministicEventReviewPipeline
             DecisionReasonCode.PastEvent or
             DecisionReasonCode.ClashDetected);
 
-    private static bool CanApplySuggestion(AiReviewSuggestion suggestion) =>
+    private bool CanApplySuggestion(AiReviewSuggestion suggestion) =>
         suggestion.Confidence >= 0.8m &&
         !string.IsNullOrWhiteSpace(suggestion.SuggestedTitle) &&
         (suggestion.SuggestedCalendar is VirtualCalendar.AdultA or
@@ -391,9 +387,9 @@ public sealed partial class DeterministicEventReviewPipeline
                 : new ResponsibleAdult(responsibleAdult, ResponsibilityKind.Attending, ResponsibilitySource.Inferred));
     }
 
-    private static ParticipationRole ParticipantRoleFor(Person person, AiReviewSuggestion suggestion)
+    private ParticipationRole ParticipantRoleFor(Person person, AiReviewSuggestion suggestion)
     {
-        if (person.Id == KnownPeople.Child.Id)
+        if (householdMetadata.IsChild(person))
         {
             return ParticipationRole.Child;
         }
@@ -403,10 +399,10 @@ public sealed partial class DeterministicEventReviewPipeline
             : ParticipationRole.Attendee;
     }
 
-    private static Person? ResolvePerson(PersonId personId) =>
-        KnownPeople.All.FirstOrDefault(person => person.Id == personId);
+    private Person? ResolvePerson(PersonId personId) =>
+        householdMetadata.FindPerson(personId);
 
-    private static bool ResponsibleAdultIsValid(AiReviewSuggestion suggestion)
+    private bool ResponsibleAdultIsValid(AiReviewSuggestion suggestion)
     {
         if (suggestion.SuggestedResponsibleAdult is null)
         {
@@ -418,18 +414,16 @@ public sealed partial class DeterministicEventReviewPipeline
         return responsibleAdult?.Kind == PersonKind.Adult;
     }
 
-    private static bool SuggestedParticipantsMatchCalendar(AiReviewSuggestion suggestion)
+    private bool SuggestedParticipantsMatchCalendar(AiReviewSuggestion suggestion)
     {
         var participantIds = suggestion.SuggestedParticipants.ToHashSet();
 
         return suggestion.SuggestedCalendar switch
         {
-            VirtualCalendar.AdultA => participantIds.Contains(KnownPeople.AdultA.Id),
-            VirtualCalendar.AdultB => participantIds.Contains(KnownPeople.AdultB.Id),
-            VirtualCalendar.Family => KnownPeople.All.All(person => participantIds.Contains(person.Id)),
-            VirtualCalendar.Child => participantIds.Contains(KnownPeople.Child.Id) &&
-                suggestion.SuggestedResponsibleAdult is not null &&
-                participantIds.Contains(suggestion.SuggestedResponsibleAdult.Value),
+            VirtualCalendar.AdultA or VirtualCalendar.AdultB => householdMetadata.FindDefaultPersonForCalendar(suggestion.SuggestedCalendar.Value) is { } person &&
+                participantIds.Contains(person.Id),
+            VirtualCalendar.Family => householdMetadata.IsFamilyParticipantSet(participantIds),
+            VirtualCalendar.Child => householdMetadata.IsChildResponsibilitySet(participantIds, suggestion.SuggestedResponsibleAdult),
             _ => false
         };
     }

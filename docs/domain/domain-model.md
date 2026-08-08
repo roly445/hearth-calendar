@@ -107,6 +107,36 @@ Audit is not logging. It is application state.
 
 ## Supporting Value Objects
 
+### Household Metadata
+
+Household people are metadata used by review rules, responsibility assignment, and virtual calendar projections.
+They are not calendars and they are not storage buckets.
+
+```csharp
+public sealed record HouseholdMember
+{
+    public required HouseholdMemberId Id { get; init; }
+    public required string DisplayName { get; init; }
+    public required HouseholdMemberKind Kind { get; init; }
+    public required bool IsActive { get; init; }
+}
+
+public sealed record HouseholdRelationship
+{
+    public required HouseholdMemberId From { get; init; }
+    public required HouseholdMemberId To { get; init; }
+    public required HouseholdRelationshipKind Kind { get; init; }
+    public required bool IsActive { get; init; }
+}
+```
+
+Initial implementation note:
+
+- `adult-a`, `adult-b`, and `child` are generic compatibility defaults.
+- `KnownPeople` is a bridge over default household metadata while persistence and admin UI are still future slices.
+- Future calendar views should filter over household members, relationships, event categories, responsibilities, and tags.
+- Committed examples and tests must use generic labels rather than real personal names.
+
 ### Event Time
 
 ```csharp
@@ -215,6 +245,20 @@ public enum VirtualCalendarId
     Events,
     Combined,
     Review
+}
+
+public enum HouseholdMemberKind
+{
+    Adult,
+    Child
+}
+
+public enum HouseholdRelationshipKind
+{
+    PartnerOf,
+    ParentOrGuardianOf,
+    HouseholdMemberOf,
+    ResponsibleFor
 }
 
 public enum EventCategory

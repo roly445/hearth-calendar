@@ -83,6 +83,16 @@ Initial virtual calendars:
 
 Virtual calendars are app-owned views generated from event metadata. They are not storage buckets.
 
+Household members and relationships are also event metadata. Adding another person or relationship should not create a new physical calendar; it should change how saved/system views filter the shared app-owned event store.
+
+Current implementation uses generic compatibility defaults:
+
+- `adult-a`
+- `adult-b`
+- `child`
+
+These defaults should be replaced by persisted household metadata and admin UI in later slices.
+
 ## First Useful Web Screens
 
 Initial UI screens:

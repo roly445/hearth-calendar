@@ -1,0 +1,15 @@
+[
+  {
+    Title: Child A swimming,
+    Participants: [
+      {
+        PersonId: child-a,
+        Role: Child
+      },
+      {
+        PersonId: adult-c,
+        Role: ResponsibleAdult
+      }
+    ]
+  }
+]
